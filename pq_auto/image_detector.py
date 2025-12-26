@@ -42,18 +42,29 @@ class ImageDetector:
         if template_name not in self.templates:
             return (False, 0, 0, 0.0)
         
-        # Convert PIL Image to OpenCV format (RGB -> BGR)
-        screen_cv = cv2.cvtColor(np.array(screenshot), cv2.COLOR_RGB2BGR)
+        # Scale down for faster processing (4x faster at 0.5 scale)
+        scale = 0.5
+        small_screenshot = screenshot.resize(
+            (int(screenshot.width * scale), int(screenshot.height * scale)),
+            Image.Resampling.LANCZOS
+        )
+        
+        # Scale down template too
         template = self.templates[template_name]
+        small_template = cv2.resize(template, None, fx=scale, fy=scale)
+        
+        # Convert and match on smaller images
+        screen_cv = cv2.cvtColor(np.array(small_screenshot), cv2.COLOR_RGB2BGR)
         
         # Template matching
-        result = cv2.matchTemplate(screen_cv, template, cv2.TM_CCOEFF_NORMED)
+        result = cv2.matchTemplate(screen_cv, small_template, cv2.TM_CCOEFF_NORMED)
         min_val, max_val, min_loc, max_loc = cv2.minMaxLoc(result)
         
         if max_val >= MATCH_THRESHOLD:
-            h, w = template.shape[:2]
-            center_x = max_loc[0] + w // 2
-            center_y = max_loc[1] + h // 2
+            h, w = small_template.shape[:2]
+            # Scale coordinates back to original size
+            center_x = int((max_loc[0] + w // 2) / scale)
+            center_y = int((max_loc[1] + h // 2) / scale)
             return (True, center_x, center_y, max_val)
         
         return (False, 0, 0, max_val)
