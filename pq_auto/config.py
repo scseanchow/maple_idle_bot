@@ -7,10 +7,10 @@ Configuration for MapleStory Idle Party Quest Bot
 ADB_DEVICE = "emulator-5554"
 
 # Timing Configuration (in seconds)
-POLL_INTERVAL = 0.5          # How often to check screen state (faster for Accept popup)
+POLL_INTERVAL = 0.3          # How often to check screen state (faster for Accept popup)
 MATCHMAKING_TIMEOUT = 120    # Max time to wait for match (2 min)
 DUNGEON_TIMEOUT = 360        # Max time for dungeon completion (6 min)
-CLICK_DELAY = 0.2            # Delay after clicking
+CLICK_DELAY = 0.15           # Delay after clicking
 
 # Screen Resolution (actual MuMu emulator resolution - landscape mode)
 SCREEN_WIDTH = 3840
@@ -21,7 +21,7 @@ SCREEN_HEIGHT = 2160
 BUTTONS = {
     "auto_match": (3380, 2010),  # Auto Match button (bottom right, cyan) 
     "accept": (1920, 1610),      # Accept button in matchmaking popup (centered)
-    "leave": (1920, 2040),       # Leave button on clear screen (centered, near bottom)
+    "leave": (1920, 2020),       # Leave button on clear screen (20px higher)
 }
 
 # Template matching threshold (0-1, higher = stricter matching)
