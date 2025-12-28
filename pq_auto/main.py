@@ -68,6 +68,12 @@ class PartyQuestBot:
         self.running = False
         self.state = BotState.STOPPED
     
+    def tap_all_buttons(self):
+        """Tap all three button locations in quick succession."""
+        self.adb.tap(*BUTTONS["accept"])
+        self.adb.tap(*BUTTONS["leave"])
+        self.adb.tap(*BUTTONS["auto_match"])
+    
     def _print_status(self):
         elapsed = datetime.now() - self.session_start
         elapsed_str = str(elapsed).split('.')[0]
@@ -88,7 +94,7 @@ class PartyQuestBot:
               f"Session: {elapsed_str}")
     
     def run(self):
-        """Main bot loop."""
+        """Main bot loop - fully reactive to what we see."""
         print("🎮 Bot started!\n")
         
         # Check if we have templates
@@ -102,7 +108,7 @@ class PartyQuestBot:
                 self._print_status()
                 screenshot = self.adb.screenshot()
                 
-                # Use fallback detection if no templates
+                # Detect what's on screen
                 if self.detector.templates:
                     detected_state = self.detector.detect_state(screenshot, verbose=True)
                 else:
@@ -110,21 +116,8 @@ class PartyQuestBot:
                 
                 print(f"  Detected: {detected_state}")
                 
-                # State machine logic
-                if self.state == BotState.IDLE:
-                    self._handle_idle(detected_state, screenshot)
-                
-                elif self.state == BotState.QUEUING:
-                    self._handle_queuing(detected_state, screenshot)
-                
-                elif self.state == BotState.MATCH_FOUND:
-                    self._handle_match_found(detected_state, screenshot)
-                
-                elif self.state == BotState.IN_DUNGEON:
-                    self._handle_in_dungeon(detected_state, screenshot)
-                
-                elif self.state == BotState.CLEAR:
-                    self._handle_clear(detected_state, screenshot)
+                # REACTIVE LOGIC - respond to what we SEE, not what we expect
+                self._react_to_state(detected_state)
                 
                 time.sleep(POLL_INTERVAL)
                 
@@ -137,6 +130,61 @@ class PartyQuestBot:
                 time.sleep(POLL_INTERVAL * 2)
         
         self._print_final_stats()
+    
+    def _react_to_state(self, detected_state: str):
+        """React to detected state - click the appropriate next action."""
+        
+        if detected_state == "READY":
+            # We see Auto Match button - click it to queue
+            print("  → Clicking Auto Match...")
+            self.adb.tap(*BUTTONS["auto_match"])
+            self.state = BotState.QUEUING
+            self.queue_start = time.time()
+            
+        elif detected_state == "MATCH_FOUND":
+            # Accept popup visible - click Accept immediately
+            print("  → Clicking Accept...")
+            self.adb.tap(*BUTTONS["accept"])
+            self.state = BotState.IN_DUNGEON
+            self.dungeon_start = time.time()
+            
+        elif detected_state == "CLEAR":
+            # Clear screen visible - click Leave immediately
+            print("  → Clicking Leave...")
+            self.adb.tap(*BUTTONS["leave"])
+            # Only count if we were in dungeon (avoid double counting)
+            if self.state == BotState.IN_DUNGEON or self.state == BotState.QUEUING:
+                self._complete_dungeon()
+            else:
+                self.state = BotState.IDLE
+            
+        elif detected_state == "QUEUING":
+            # Matchmaking in progress - spam click Accept area to catch popup
+            print("  → Pre-clicking Accept area...")
+            self.adb.tap(*BUTTONS["accept"])
+            self.state = BotState.QUEUING
+            
+        elif detected_state == "IN_DUNGEON":
+            # In dungeon - spam click Leave to catch clear screen instantly
+            print("  → In dungeon, pre-clicking Leave...")
+            self.adb.tap(*BUTTONS["leave"])
+            self.state = BotState.IN_DUNGEON
+            
+        elif detected_state == "UNKNOWN":
+            # Can't identify screen - spam click based on context
+            if self.state == BotState.QUEUING:
+                # Probably waiting for match, spam Accept
+                print("  → Unknown state (queuing), clicking Accept...")
+                self.adb.tap(*BUTTONS["accept"])
+            elif self.state == BotState.IN_DUNGEON:
+                # Probably transitioning, spam Leave
+                print("  → Unknown state (in dungeon), clicking Leave...")
+                self.adb.tap(*BUTTONS["leave"])
+            else:
+                # Not sure, try both
+                print("  → Unknown state, clicking Accept + Leave...")
+                self.adb.tap(*BUTTONS["accept"])
+                self.adb.tap(*BUTTONS["leave"])
     
     def _handle_idle(self, detected_state: str, screenshot):
         """Handle IDLE state - click Auto Match to start queue."""
@@ -161,8 +209,7 @@ class PartyQuestBot:
     def _handle_queuing(self, detected_state: str, screenshot):
         """Handle QUEUING state - wait for match."""
         if detected_state == "MATCH_FOUND":
-            print("  ✓ Match found! Clicking Accept immediately...")
-            # Click Accept RIGHT AWAY - don't wait for next iteration
+            print("  ✓ Match found! Clicking Accept...")
             found, x, y, _ = self.detector.find_template(screenshot, "accept_btn")
             if found:
                 self.adb.tap(x, y)
@@ -171,6 +218,12 @@ class PartyQuestBot:
             time.sleep(CLICK_DELAY)
             self.state = BotState.IN_DUNGEON
             self.dungeon_start = time.time()
+        elif detected_state == "CLEAR":
+            # We somehow got to clear screen (spam-click worked through dungeon)
+            print("  ✓ Clear screen detected! Clicking Leave...")
+            self.adb.tap(*BUTTONS["leave"])
+            time.sleep(CLICK_DELAY * 2)
+            self._complete_dungeon()
         elif detected_state == "READY":
             # Queue might have been cancelled, restart
             print("  → Queue reset, clicking Auto Match again...")
@@ -180,6 +233,10 @@ class PartyQuestBot:
         elif time.time() - self.queue_start > MATCHMAKING_TIMEOUT:
             print("  ⚠ Queue timeout, restarting...")
             self.state = BotState.IDLE
+        else:
+            # Spam-click Accept area while waiting - catches popup instantly
+            print("  → Pre-clicking Accept area...")
+            self.adb.tap(*BUTTONS["accept"])
     
     def _handle_match_found(self, detected_state: str, screenshot):
         """Handle MATCH_FOUND state - click Accept."""
@@ -198,36 +255,38 @@ class PartyQuestBot:
     
     def _handle_in_dungeon(self, detected_state: str, screenshot):
         """Handle IN_DUNGEON state - wait for clear."""
+        dungeon_time = time.time() - self.dungeon_start
+        
         if detected_state == "CLEAR":
-            print("  ✓ Dungeon cleared! Clicking Leave immediately...")
-            # Click Leave RIGHT AWAY - don't wait for next iteration
-            found, x, y, _ = self.detector.find_template(screenshot, "leave_btn")
-            if found:
-                self.adb.tap(x, y)
-            else:
-                self.adb.tap(*BUTTONS["leave"])
-            time.sleep(CLICK_DELAY * 2)  # Slightly longer for screen transition
-            self.clear_count += 1
-            print(f"  ★ Total clears: {self.clear_count}")
-            self.state = BotState.IDLE
+            print("  ✓ Dungeon cleared! Clicking Leave...")
+            self.adb.tap(*BUTTONS["leave"])  # Always use config coordinates
+            time.sleep(CLICK_DELAY * 2)
+            self._complete_dungeon()
         elif detected_state == "READY":
-            # Somehow back at ready screen (maybe disconnected?)
-            print("  ⚠ Back at ready screen unexpectedly")
-            self.state = BotState.IDLE
-        elif time.time() - self.dungeon_start > DUNGEON_TIMEOUT:
+            # Back at ready screen - dungeon was cleared (spam-click worked)
+            if dungeon_time > 30:  # Only count if we were in dungeon for a while
+                self._complete_dungeon()
+            else:
+                print("  ⚠ Back at ready screen early")
+                self.state = BotState.IDLE
+        elif dungeon_time > DUNGEON_TIMEOUT:
             print("  ⚠ Dungeon timeout, checking state...")
             self.state = BotState.IDLE
+        elif dungeon_time > 30:
+            # After 30 seconds, start pre-clicking Leave area to catch it faster
+            print("  → Pre-clicking Leave area...")
+            self.adb.tap(*BUTTONS["leave"])
+    
+    def _complete_dungeon(self):
+        """Mark dungeon as complete and increment counter."""
+        self.clear_count += 1
+        print(f"  ★ Dungeon complete! Total clears: {self.clear_count}")
+        self.state = BotState.IDLE
     
     def _handle_clear(self, detected_state: str, screenshot):
         """Handle CLEAR state - confirm and restart."""
-        # Try to find leave button position dynamically
-        found, x, y, _ = self.detector.find_template(screenshot, "leave_btn")
-        if found:
-            print(f"  → Clicking Leave at ({x}, {y})...")
-            self.adb.tap(x, y)
-        else:
-            print("  → Clicking Leave (fixed position)...")
-            self.adb.tap(*BUTTONS["leave"])
+        print("  → Clicking Leave...")
+        self.adb.tap(*BUTTONS["leave"])  # Always use config coordinates
         
         time.sleep(CLICK_DELAY * 2)  # Longer delay for screen transition
         

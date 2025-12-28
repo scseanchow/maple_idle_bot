@@ -143,6 +143,13 @@ class ImageDetector:
         if found:
             return "QUEUING"
         
+        # Check for minimap (indicates we're in dungeon)
+        found, _, _, conf = self.find_template(screenshot, "minimap")
+        if verbose and "minimap" in self.templates:
+            print(f"    [debug] minimap: conf={conf:.3f} found={found}")
+        if found:
+            return "IN_DUNGEON"
+        
         return "UNKNOWN"
     
     def detect_state_with_fallback(self, screenshot: Image.Image) -> str:

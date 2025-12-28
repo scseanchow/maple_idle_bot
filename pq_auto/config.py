@@ -21,7 +21,7 @@ SCREEN_HEIGHT = 2160
 BUTTONS = {
     "auto_match": (3380, 2010),  # Auto Match button (bottom right, cyan) 
     "accept": (1920, 1610),      # Accept button in matchmaking popup (centered)
-    "leave": (1920, 2020),       # Leave button on clear screen (20px higher)
+    "leave": (1920, 2020),       # Leave button on clear screen (verified from template)
 }
 
 # Template matching threshold (0-1, higher = stricter matching)
