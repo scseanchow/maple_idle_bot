@@ -22,6 +22,7 @@ BUTTONS = {
     "auto_match": (3380, 2010),  # Auto Match button (bottom right, cyan) 
     "accept": (1920, 1610),      # Accept button in matchmaking popup (centered)
     "leave": (1920, 2020),       # Leave button on clear screen (verified from template)
+    "ok": (1920, 1415),          # OK button on error/notice dialogs (centered)
 }
 
 # Template matching threshold (0-1, higher = stricter matching)

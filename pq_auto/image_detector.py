@@ -98,8 +98,16 @@ class ImageDetector:
     def detect_state(self, screenshot: Image.Image, verbose: bool = False) -> str:
         """
         Detect current game state from screenshot.
-        Returns one of: READY, QUEUING, MATCH_FOUND, IN_DUNGEON, CLEAR, UNKNOWN
+        Returns one of: READY, QUEUING, MATCH_FOUND, IN_DUNGEON, CLEAR, ERROR_DIALOG, UNKNOWN
         """
+        # Check for error/notice dialog FIRST - these block everything and must be dismissed
+        # Detect by the "Notice" banner text (more unique than OK button)
+        found_notice, _, _, conf_notice = self.find_template(screenshot, "notice_banner")
+        if verbose and "notice_banner" in self.templates:
+            print(f"    [debug] notice_banner: conf={conf_notice:.3f} found={found_notice}")
+        if found_notice:
+            return "ERROR_DIALOG"
+        
         # Check Auto Match FIRST - it's the "home" state and has highest confidence
         # This prevents false positives from similar cyan buttons
         found_auto, _, _, conf_auto = self.find_template(screenshot, "auto_match_btn")

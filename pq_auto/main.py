@@ -49,6 +49,16 @@ class PartyQuestBot:
         # Timestamps for timeout tracking
         self.queue_start = 0
         self.dungeon_start = 0
+        self.last_clear_time = time.time()  # Track last successful clear
+        
+        # Flag to prevent double-counting clears
+        self.last_clear_counted = False
+        
+        # Inactivity timeout (30 minutes with no clears = stop bot)
+        self.inactivity_timeout = 30 * 60  # 30 minutes in seconds
+        
+        # Maximum runtime (8 hours = stop bot)
+        self.max_runtime = 8 * 60 * 60  # 8 hours in seconds
         
         # Handle Ctrl+C gracefully
         signal.signal(signal.SIGINT, self._signal_handler)
@@ -116,6 +126,22 @@ class PartyQuestBot:
                 
                 print(f"  Detected: {detected_state}")
                 
+                # Check for inactivity timeout (no clears in 30 min)
+                time_since_clear = time.time() - self.last_clear_time
+                if time_since_clear > self.inactivity_timeout:
+                    print(f"\n⚠ No successful clears in {self.inactivity_timeout // 60} minutes!")
+                    print("  Stopping bot due to inactivity...")
+                    self.running = False
+                    break
+                
+                # Check for max runtime (8 hours)
+                elapsed = (datetime.now() - self.session_start).total_seconds()
+                if elapsed > self.max_runtime:
+                    print(f"\n⏰ Maximum runtime of {self.max_runtime // 3600} hours reached!")
+                    print("  Stopping bot...")
+                    self.running = False
+                    break
+                
                 # REACTIVE LOGIC - respond to what we SEE, not what we expect
                 self._react_to_state(detected_state)
                 
@@ -136,10 +162,18 @@ class PartyQuestBot:
         
         if detected_state == "READY":
             # We see Auto Match button - click it to queue
+            # But first check if we came from a dungeon (spam-click worked, skipped CLEAR)
+            if self.state == BotState.IN_DUNGEON and not self.last_clear_counted:
+                dungeon_time = time.time() - self.dungeon_start
+                if dungeon_time > 30:  # Only count if we were in dungeon for a reasonable time
+                    print("  ★ Clear detected via state transition (spam-click worked)")
+                    self._complete_dungeon()
+            
             print("  → Clicking Auto Match...")
             self.adb.tap(*BUTTONS["auto_match"])
             self.state = BotState.QUEUING
             self.queue_start = time.time()
+            self.last_clear_counted = False  # Reset for new run
             
         elif detected_state == "MATCH_FOUND":
             # Accept popup visible - click Accept immediately
@@ -147,16 +181,21 @@ class PartyQuestBot:
             self.adb.tap(*BUTTONS["accept"])
             self.state = BotState.IN_DUNGEON
             self.dungeon_start = time.time()
+            self.last_clear_counted = False  # Reset for new dungeon
             
         elif detected_state == "CLEAR":
-            # Clear screen visible - click Leave immediately
+            # Clear screen visible - click Leave and count
+            if not self.last_clear_counted:
+                self._complete_dungeon()
             print("  → Clicking Leave...")
             self.adb.tap(*BUTTONS["leave"])
-            # Only count if we were in dungeon (avoid double counting)
-            if self.state == BotState.IN_DUNGEON or self.state == BotState.QUEUING:
-                self._complete_dungeon()
-            else:
-                self.state = BotState.IDLE
+            
+        elif detected_state == "ERROR_DIALOG":
+            # Error/notice dialog visible - click OK to dismiss and re-queue
+            print("  ⚠ Error dialog detected, clicking OK...")
+            self.adb.tap(*BUTTONS["ok"])
+            time.sleep(CLICK_DELAY * 2)  # Wait for dialog to close
+            self.state = BotState.IDLE  # Reset to try again
             
         elif detected_state == "QUEUING":
             # Matchmaking in progress - spam click Accept area to catch popup
@@ -280,6 +319,8 @@ class PartyQuestBot:
     def _complete_dungeon(self):
         """Mark dungeon as complete and increment counter."""
         self.clear_count += 1
+        self.last_clear_time = time.time()  # Reset inactivity timer
+        self.last_clear_counted = True  # Prevent double-counting this dungeon
         print(f"  ★ Dungeon complete! Total clears: {self.clear_count}")
         self.state = BotState.IDLE
     
