@@ -10,6 +10,7 @@ Press Ctrl+C to stop the bot gracefully.
 """
 
 import time
+import random
 import signal
 import sys
 import os
@@ -211,6 +212,9 @@ class PartyQuestBot:
             
         elif detected_state == "IN_DUNGEON":
             # In dungeon - just wait, don't pre-click Leave
+            if random.randint(0, 100) <= 8:
+                print("  → Clicking Jump...")
+                self.adb.tap(*self.BUTTONS["jump"])
             self.state = BotState.IN_DUNGEON
             
         elif detected_state == "UNKNOWN":

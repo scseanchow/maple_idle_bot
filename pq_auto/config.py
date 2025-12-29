@@ -27,6 +27,7 @@ BUTTONS_RELATIVE = {
     "accept": (0.5, 0.7454),         # Accept button in matchmaking popup (centered)
     "leave": (0.5, 0.9352),          # Leave button on clear screen
     "ok": (0.5, 0.6546),             # OK button on error/notice dialogs (centered)
+    "jump": (0.8802, 0.9506),        # Jump button (centered)
 }
 
 # Template matching threshold (0-1, higher = stricter matching)
