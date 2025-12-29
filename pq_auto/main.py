@@ -63,7 +63,7 @@ class PartyQuestBot:
         self.inactivity_timeout = fuzzy_time(30 * 60)  # 30 minutes in seconds
         
         # Maximum runtime (around 8 hours = stop bot)
-        self.max_runtime = fuzzy_time(8 * 60 * 60)  # 8 hours in seconds
+        self.max_runtime = fuzzy_time(5 * 60 * 60)  # 8 hours in seconds
         
         # Handle Ctrl+C gracefully
         signal.signal(signal.SIGINT, self._signal_handler)
@@ -141,7 +141,7 @@ class PartyQuestBot:
                 
                 # Check for max runtime (8 hours)
                 elapsed = (datetime.now() - self.session_start).total_seconds()
-                if elapsed > self.max_runtime:
+                if elapsed > self.max_runtime and detected_state == "IN_DUNGEON":
                     print(f"\n⏰ Maximum runtime of {self.max_runtime // 3600} hours reached!")
                     print("  Stopping bot...")
                     self.running = False
@@ -215,6 +215,10 @@ class PartyQuestBot:
             if random.randint(0, 100) <= 8:
                 print("  → Clicking Jump...")
                 self.adb.tap(*self.BUTTONS["jump"])
+                if random.randint(0, 100) <= 30:
+                    time.sleep(fuzzy_time(0.1))
+                    print("  → Clicking Double Jump...")
+                    self.adb.tap(*self.BUTTONS["jump"])
             self.state = BotState.IN_DUNGEON
             
         elif detected_state == "UNKNOWN":
@@ -248,8 +252,6 @@ class PartyQuestBot:
                         self.adb.tap(*self.BUTTONS["accept"])
                         self.state = BotState.IN_DUNGEON
                         self.dungeon_start = time.time()
-                    else:
-                        print(f"  → Unknown state (queuing), waiting... ({int(time_in_unknown)}s / 600s)")
             elif self.state == BotState.IN_DUNGEON:
                 # While in dungeon: could be CLEAR (dungeon finished) or READY (returned to lobby)
                 # Check for CLEAR first (most likely if dungeon finished)
@@ -270,8 +272,6 @@ class PartyQuestBot:
                         else:
                             print("  → Unknown state (in dungeon) - detected READY (too early), resetting...")
                             self.state = BotState.IDLE
-                    else:
-                        print(f"  → Unknown state (in dungeon), waiting... ({int(time_in_unknown)}s / 600s)")
             else:
                 # IDLE or other state - most likely we're at READY but template missed it
                 found_auto, _, _, _ = self.detector.find_template(screenshot, "auto_match_btn")
@@ -282,7 +282,6 @@ class PartyQuestBot:
                     self.queue_start = time.time()
                 else:
                     # Last resort: try clicking Auto Match anyway (if we're stuck)
-                    print(f"  → Unknown state, trying Auto Match as fallback... ({int(time_in_unknown)}s / 600s)")
                     self.adb.tap(*self.BUTTONS["auto_match"])
     
     def _handle_idle(self, detected_state: str, screenshot):
