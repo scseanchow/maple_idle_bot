@@ -1,6 +1,6 @@
 # MapleStory Idle - Party Quest Auto Bot
 
-An automation bot for the Party Quest feature in MapleStory Idle, running on MuMu Player (Android emulator) on macOS.
+An automation bot for the Party Quest feature in MapleStory Idle, running on Android emulators (tested with MuMu Player) via ADB.
 
 ## Features
 
@@ -9,24 +9,26 @@ An automation bot for the Party Quest feature in MapleStory Idle, running on MuM
 - ✅ **Auto clear** - Clicks "Leave" after dungeon completion
 - ✅ **Clear counter** - Tracks number of successful dungeon clears
 - ✅ **Error dialog handling** - Auto-dismisses "Failed to connect" and other notice dialogs
-- ✅ **Spam-click optimization** - Pre-clicks Accept/Leave areas to catch popups faster
+- ✅ **Human-like behavior** - Random click offsets and timing variations
+- ✅ **Resolution-independent** - Auto-detects screen size and scales button positions
+- ✅ **Auto device detection** - Automatically finds and connects to first available ADB device
 - ✅ **Background operation** - Works via ADB without requiring window focus
 - ✅ **Safety limits** - 30-min inactivity timeout + 8-hour max runtime
 - ✅ **Graceful shutdown** - Press Ctrl+C to stop with session statistics
 
 ## Requirements
 
-- macOS
+- Windows/macOS/Linux
 - Python 3.10+
-- MuMu Player (or compatible Android emulator with ADB support)
+- Android emulator (MuMu Player, BlueStacks, etc.) with ADB support
 - ADB (Android Debug Bridge)
 
 ## Installation
 
 1. **Install ADB**:
-   ```bash
-   brew install android-platform-tools
-   ```
+   - **macOS**: `brew install android-platform-tools`
+   - **Windows**: Download [Android Platform Tools](https://developer.android.com/tools/releases/platform-tools) and add to PATH
+   - **Linux**: `sudo apt install android-tools-adb` (Ubuntu/Debian)
 
 2. **Clone the repository**:
    ```bash
@@ -37,15 +39,16 @@ An automation bot for the Party Quest feature in MapleStory Idle, running on MuM
 3. **Create virtual environment and install dependencies**:
    ```bash
    python3 -m venv venv
-   source venv/bin/activate
+   source venv/bin/activate  # On Windows: venv\Scripts\activate
    pip install -r requirements.txt
    ```
 
 4. **Verify ADB connection**:
    ```bash
    adb devices
-   # Should show: emulator-5554  device
+   # Should show your emulator, e.g.: emulator-5574  device
    ```
+   The bot will automatically detect and use the first available device.
 
 ## Setup
 
@@ -69,16 +72,18 @@ python main.py --calibrate
    - `notice_banner.png` - The "Notice" header on error dialogs
    - `ok_btn.png` - The "OK" button on error dialogs
 
-### 2. Adjust Coordinates (if needed)
+### 2. Button Coordinates (Automatic)
 
-If clicks are missing their targets, update button coordinates in `config.py`:
+Button coordinates are now **resolution-independent** and automatically scale to your screen size. The bot uses relative positions (percentages) that work on any resolution.
+
+If you need to adjust button positions, edit `BUTTONS_RELATIVE` in `config.py` (values are 0.0-1.0, where 0.0 = top/left, 1.0 = bottom/right):
 
 ```python
-BUTTONS = {
-    "auto_match": (3380, 2010),
-    "accept": (1920, 1610),
-    "leave": (1920, 2020),
-    "ok": (1920, 1415),
+BUTTONS_RELATIVE = {
+    "auto_match": (0.8802, 0.9306),  # 88% from left, 93% from top
+    "accept": (0.5, 0.7454),         # 50% from left, 74.5% from top
+    "leave": (0.5, 0.9352),          # 50% from left, 93.5% from top
+    "ok": (0.5, 0.6546),             # 50% from left, 65.5% from top
 }
 ```
 
@@ -103,16 +108,26 @@ Edit `config.py` to customize:
 
 | Setting | Default | Description |
 |---------|---------|-------------|
-| `ADB_DEVICE` | `emulator-5554` | ADB device identifier |
 | `POLL_INTERVAL` | `0.3` | Screen check frequency (seconds) |
 | `CLICK_DELAY` | `0.15` | Delay after clicking (seconds) |
 | `MATCH_THRESHOLD` | `0.85` | Template matching strictness (0-1) |
 | `MATCHMAKING_TIMEOUT` | `120` | Max queue wait time (seconds) |
 | `DUNGEON_TIMEOUT` | `360` | Max dungeon time (seconds) |
+| `CLICK_FUZZINESS` | `10` | Random click offset in pixels (±value) |
+| `TIMING_FUZZINESS` | `0.15` | Random timing variation (±15% of base value) |
 
-The bot also has built-in safety limits:
+**Auto-detected settings** (no configuration needed):
+- `ADB_DEVICE` - Automatically detected from first available device
+- `SCREEN_WIDTH` / `SCREEN_HEIGHT` - Automatically detected from screenshot
+- `BUTTONS` - Automatically calculated from relative positions and screen size
+
+**Safety limits**:
 - **Inactivity timeout**: Stops after 30 minutes with no successful clears
 - **Max runtime**: Stops after 8 hours of continuous operation
+
+**Human-like behavior**:
+- Random click offsets (`CLICK_FUZZINESS`) make clicks less predictable
+- Random timing variations (`TIMING_FUZZINESS`) add natural delays
 
 ## How It Works
 
@@ -126,11 +141,15 @@ The bot uses a **reactive state machine** - it responds to what it sees on scree
 │  See Accept btn      → Click it → IN_DUNGEON            │
 │  See CLEAR screen    → Click Leave → Count clear        │
 │  See Notice dialog   → Click OK → Reset to queue        │
-│  See Minimap         → In dungeon, pre-click Leave      │
+│  See Minimap         → In dungeon, wait for CLEAR       │
 └─────────────────────────────────────────────────────────┘
 ```
 
-**Spam-click optimization**: While queuing, the bot pre-clicks the Accept area. While in dungeon (after 30s), it pre-clicks the Leave area. This catches popups instantly.
+**Optimization strategy**:
+- While queuing: Pre-clicks Accept area to catch match popup instantly
+- While in dungeon: Waits passively, only clicks Leave when CLEAR screen is detected
+- All clicks have random offsets for human-like behavior
+- All timing has random variations to avoid predictable patterns
 
 ## Utilities
 
@@ -151,9 +170,11 @@ python spam_tap.py [interval]
 - Run calibration mode option 4 to test template matching
 
 ### Clicks are missing targets
-- Run calibration mode and note exact button coordinates
-- Update `BUTTONS` in config.py
+- Button positions auto-scale to your screen resolution
+- If positions need adjustment, edit `BUTTONS_RELATIVE` in config.py (use 0.0-1.0 values)
+- Run calibration mode to get screen resolution and test coordinates
 - Use `spam_tap.py` to test if clicks register
+- Increase `CLICK_FUZZINESS` if clicks are too precise (or decrease if too inaccurate)
 
 ### ADB connection issues
 - Ensure MuMu Player is running
@@ -162,8 +183,15 @@ python spam_tap.py [interval]
 
 ### Bot misses clicks when window not focused
 - Disable "Dynamic Frame Rate" in MuMu settings
-- Disable App Nap for MuMu: `defaults write com.mumuglobal.MuMuPlayer NSAppSleepDisabled -bool YES`
+- **macOS**: Disable App Nap: `defaults write com.mumuglobal.MuMuPlayer NSAppSleepDisabled -bool YES`
 - Lower MuMu's CPU/memory allocation if system is under load
+- Ensure emulator is running at consistent resolution (bot auto-detects size)
+
+### Screen resolution detection fails
+- The bot auto-detects screen size from screenshots
+- If detection fails, it falls back to `wm size` command
+- Ensure ADB connection is stable
+- Check that emulator is in landscape mode
 
 ## License
 
