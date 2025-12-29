@@ -3,8 +3,8 @@ Configuration for MapleStory Idle Party Quest Bot
 """
 
 # ADB Configuration
-# Use the device name from 'adb devices' output
-ADB_DEVICE = "emulator-5554"
+# ADB_DEVICE will be auto-detected from the first available device
+# Screen dimensions will be auto-detected from the screenshot
 
 # Timing Configuration (in seconds)
 POLL_INTERVAL = 0.3          # How often to check screen state (faster for Accept popup)
@@ -12,20 +12,33 @@ MATCHMAKING_TIMEOUT = 120    # Max time to wait for match (2 min)
 DUNGEON_TIMEOUT = 360        # Max time for dungeon completion (6 min)
 CLICK_DELAY = 0.15           # Delay after clicking
 
-# Screen Resolution (actual MuMu emulator resolution - landscape mode)
-SCREEN_WIDTH = 3840
-SCREEN_HEIGHT = 2160
+# Click Configuration
+CLICK_FUZZINESS = 10         # Random offset range for clicks (±pixels) to make clicks more human-like
 
-# Button coordinates (calibrate these using --calibrate mode)
-# For 3840x2160 landscape resolution
-BUTTONS = {
-    "auto_match": (3380, 2010),  # Auto Match button (bottom right, cyan) 
-    "accept": (1920, 1610),      # Accept button in matchmaking popup (centered)
-    "leave": (1920, 2020),       # Leave button on clear screen (verified from template)
-    "ok": (1920, 1415),          # OK button on error/notice dialogs (centered)
+# Timing Fuzziness Configuration
+TIMING_FUZZINESS = 0.15      # Random variation for timing (±15% of base value) to make behavior more human-like
+
+# Button coordinates (stored as relative positions 0.0-1.0 for resolution independence)
+# These were calibrated for 1920x1080 and will scale to any resolution
+# Format: (x_percentage, y_percentage) where 0.0 = left/top, 1.0 = right/bottom
+BUTTONS_RELATIVE = {
+    "auto_match": (0.8802, 0.9306),  # Auto Match button (bottom right, cyan)
+    "accept": (0.5, 0.7454),         # Accept button in matchmaking popup (centered)
+    "leave": (0.5, 0.9352),          # Leave button on clear screen
+    "ok": (0.5, 0.6546),             # OK button on error/notice dialogs (centered)
 }
 
 # Template matching threshold (0-1, higher = stricter matching)
 # Lower this if detection is missing buttons, raise if getting false positives
 MATCH_THRESHOLD = 0.85
+
+
+def fuzzy_time(base_time: float) -> float:
+    """
+    Add random variation to timing values for more human-like behavior.
+    Returns base_time with ±TIMING_FUZZINESS% variation.
+    """
+    import random
+    variation = base_time * TIMING_FUZZINESS
+    return max(0.0, base_time + random.uniform(-variation, variation))
 
