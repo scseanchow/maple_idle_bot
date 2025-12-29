@@ -12,7 +12,6 @@ import sys
 import time
 import signal
 from adb_controller import ADBController
-from config import BUTTONS
 
 running = True
 
@@ -37,6 +36,7 @@ def main():
     # Setup
     signal.signal(signal.SIGINT, signal_handler)
     adb = ADBController()
+    buttons = adb.BUTTONS  # Get auto-scaled button coordinates
     
     print()
     print("╔════════════════════════════════════════╗")
@@ -46,18 +46,18 @@ def main():
     print("║  Press Ctrl+C to stop                  ║")
     print("╚════════════════════════════════════════╝")
     print()
-    print(f"Tapping: Accept {BUTTONS['accept']}")
-    print(f"         Leave  {BUTTONS['leave']}")
-    print(f"         Auto   {BUTTONS['auto_match']}")
+    print(f"Tapping: Accept {buttons['accept']}")
+    print(f"         Leave  {buttons['leave']}")
+    print(f"         Auto   {buttons['auto_match']}")
     print()
     
     tap_count = 0
     
     while running:
         # Tap all three buttons
-        adb.tap(*BUTTONS["accept"])
-        adb.tap(*BUTTONS["leave"])
-        adb.tap(*BUTTONS["auto_match"])
+        adb.tap(*buttons["accept"])
+        adb.tap(*buttons["leave"])
+        adb.tap(*buttons["auto_match"])
         
         tap_count += 1
         print(f"\r  Tap cycles: {tap_count}", end="", flush=True)
