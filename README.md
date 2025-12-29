@@ -146,7 +146,7 @@ The bot uses a **reactive state machine** - it responds to what it sees on scree
 ```
 
 **Optimization strategy**:
-- While queuing: Pre-clicks Accept area to catch match popup instantly
+- While queuing: Waits passively, only clicks Accept when MATCH_FOUND is detected
 - While in dungeon: Waits passively, only clicks Leave when CLEAR screen is detected
 - All clicks have random offsets for human-like behavior
 - All timing has random variations to avoid predictable patterns
