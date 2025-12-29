@@ -7,7 +7,7 @@ import subprocess
 import io
 import random
 from PIL import Image
-from config import CLICK_FUZZINESS, BUTTONS_RELATIVE
+from config import CLICK_FUZZINESS_X, CLICK_FUZZINESS_Y, BUTTONS_RELATIVE
 
 
 class ADBController:
@@ -105,8 +105,8 @@ class ADBController:
     def tap(self, x: int, y: int):
         """Send tap event to emulator with random offset for human-like behavior."""
         # Add random offset to coordinates (±CLICK_FUZZINESS pixels)
-        offset_x = random.randint(-CLICK_FUZZINESS, CLICK_FUZZINESS)
-        offset_y = random.randint(-CLICK_FUZZINESS, CLICK_FUZZINESS)
+        offset_x = random.randint(-CLICK_FUZZINESS_X, CLICK_FUZZINESS_X)
+        offset_y = random.randint(-CLICK_FUZZINESS_Y, CLICK_FUZZINESS_Y)
         fuzzy_x = max(0, min(self.screen_width - 1, x + offset_x))  # Clamp to screen bounds
         fuzzy_y = max(0, min(self.screen_height - 1, y + offset_y))  # Clamp to screen bounds
         
