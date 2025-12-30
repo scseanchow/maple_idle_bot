@@ -143,10 +143,8 @@ class PartyQuestBot:
                 elapsed = (datetime.now() - self.session_start).total_seconds()
                 if elapsed > self.max_runtime and detected_state == "IN_DUNGEON":
                     print(f"\n⏰ Maximum runtime of {self.max_runtime // 3600} hours reached!")
-                    fuzzy_sleep = fuzzy_time(14400)
-                    print(f"  Stopping bot... for {fuzzy_sleep // 3600} hours")
-                    time.sleep(fuzzy_sleep)
-                    print("  Resuming bot...")
+                    print("  Stopping bot...")
+                    self.running = False
                     break
                 
                 # REACTIVE LOGIC - respond to what we SEE, not what we expect
