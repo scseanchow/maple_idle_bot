@@ -63,7 +63,7 @@ class PartyQuestBot:
         self.inactivity_timeout = fuzzy_time(30 * 60)  # 30 minutes in seconds
         
         # Maximum runtime (around 8 hours = stop bot)
-        self.max_runtime = fuzzy_time(5 * 60 * 60)  # 8 hours in seconds
+        self.max_runtime = fuzzy_time(8 * 60 * 60)  # 8 hours in seconds
         
         # Handle Ctrl+C gracefully
         signal.signal(signal.SIGINT, self._signal_handler)
@@ -143,8 +143,10 @@ class PartyQuestBot:
                 elapsed = (datetime.now() - self.session_start).total_seconds()
                 if elapsed > self.max_runtime and detected_state == "IN_DUNGEON":
                     print(f"\n⏰ Maximum runtime of {self.max_runtime // 3600} hours reached!")
-                    print("  Stopping bot...")
-                    self.running = False
+                    fuzzy_sleep = fuzzy_time(14400)
+                    print(f"  Stopping bot... for {fuzzy_sleep // 3600} hours")
+                    time.sleep(fuzzy_sleep)
+                    print("  Resuming bot...")
                     break
                 
                 # REACTIVE LOGIC - respond to what we SEE, not what we expect
