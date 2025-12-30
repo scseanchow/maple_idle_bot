@@ -21,7 +21,7 @@ from adb_controller import ADBController
 from image_detector import ImageDetector
 from config import (
     POLL_INTERVAL, CLICK_DELAY,
-    MATCHMAKING_TIMEOUT, DUNGEON_TIMEOUT,
+    MATCHMAKING_TIMEOUT, DUNGEON_TIMEOUT, QUEUE_TIMEOUT,
     fuzzy_time
 )
 
@@ -146,7 +146,7 @@ class PartyQuestBot:
                     break
                 
                 # REACTIVE LOGIC - respond to what we SEE, not what we expect
-                self._react_to_state(detected_state)
+                self._react_to_state(detected_state, screenshot)
                 
                 time.sleep(fuzzy_time(POLL_INTERVAL))
                 
@@ -160,7 +160,7 @@ class PartyQuestBot:
         
         self._print_final_stats()
     
-    def _react_to_state(self, detected_state: str):
+    def _react_to_state(self, detected_state: str, screenshot):
         """React to detected state - click the appropriate next action."""
         
         if detected_state == "READY":
@@ -201,18 +201,58 @@ class PartyQuestBot:
             self.state = BotState.IDLE  # Reset to try again
             
         elif detected_state == "QUEUING":
-            # Matchmaking in progress - spam click Accept area to catch popup
-            print("  → Pre-clicking Accept area...")
-            self.adb.tap(*self.BUTTONS["accept"])
-            self.state = BotState.QUEUING
+            # Try to read actual matchmaking time from screen
+            screen_time = self.detector.read_matchmaking_time(screenshot)
+            
+            if screen_time > 0:
+                # Use screen-detected time
+                if screen_time > QUEUE_TIMEOUT:
+                    print(f"  ⚠ Queue timeout (screen shows {screen_time}s > {QUEUE_TIMEOUT}s), cancelling...")
+                    self.adb.tap(*self.BUTTONS["cancel_queue"])  # Click X on matchmaking popup
+                    time.sleep(fuzzy_time(CLICK_DELAY * 3))  # Wait for popup to close
+                    self.state = BotState.IDLE  # Reset to re-queue
+                else:
+                    # Show screen time and pre-click Accept
+                    mins, secs = divmod(screen_time, 60)
+                    print(f"  → Pre-clicking Accept area... (queue: {mins}:{secs:02d})")
+                    self.adb.tap(*self.BUTTONS["accept"])
+                    self.state = BotState.QUEUING
+            else:
+                # Fallback to internal timer if OCR fails
+                queue_time = time.time() - self.queue_start
+                if queue_time > QUEUE_TIMEOUT:
+                    print(f"  ⚠ Queue timeout ({int(queue_time)}s), cancelling...")
+                    self.adb.tap(*self.BUTTONS["cancel_queue"])
+                    time.sleep(fuzzy_time(CLICK_DELAY * 3))
+                    self.state = BotState.IDLE
+                else:
+                    print(f"  → Pre-clicking Accept area... (queue: {int(queue_time)}s)")
+                    self.adb.tap(*self.BUTTONS["accept"])
+                    self.state = BotState.QUEUING
             
         elif detected_state == "IN_DUNGEON":
             # In dungeon - just wait, don't pre-click Leave
             self.state = BotState.IN_DUNGEON
             
         elif detected_state == "UNKNOWN":
-            # Can't identify screen - spam click based on context
-            if self.state == BotState.QUEUING:
+            # Can't identify screen - but try to read queue time anyway
+            # If we can read a matchmaking time, we're probably in queue
+            screen_time = self.detector.read_matchmaking_time(screenshot)
+            
+            if screen_time > 0:
+                # We can read a queue time - treat this as QUEUING state
+                if screen_time > QUEUE_TIMEOUT:
+                    mins, secs = divmod(screen_time, 60)
+                    print(f"  ⚠ Queue timeout (screen shows {mins}:{secs:02d} > 3:00), cancelling...")
+                    self.adb.tap(*self.BUTTONS["cancel_queue"])
+                    time.sleep(fuzzy_time(CLICK_DELAY * 3))
+                    self.state = BotState.IDLE
+                else:
+                    mins, secs = divmod(screen_time, 60)
+                    print(f"  → Unknown state but queue detected ({mins}:{secs:02d}), clicking Accept...")
+                    self.adb.tap(*self.BUTTONS["accept"])
+                    self.state = BotState.QUEUING
+            elif self.state == BotState.QUEUING:
                 # Probably waiting for match, spam Accept
                 print("  → Unknown state (queuing), clicking Accept...")
                 self.adb.tap(*self.BUTTONS["accept"])

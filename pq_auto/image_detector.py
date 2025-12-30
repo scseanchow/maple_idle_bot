@@ -5,9 +5,17 @@ Detects UI elements and game state from screenshots.
 
 import cv2
 import numpy as np
+import re
 from PIL import Image
 from pathlib import Path
 from config import MATCH_THRESHOLD
+
+try:
+    import pytesseract
+    TESSERACT_AVAILABLE = True
+except ImportError:
+    TESSERACT_AVAILABLE = False
+    print("  ⚠ pytesseract not installed - queue time detection disabled")
 
 
 class ImageDetector:
@@ -191,4 +199,57 @@ class ImageDetector:
             return "CLEAR"
         
         return "UNKNOWN"
+    
+    def read_matchmaking_time(self, screenshot: Image.Image) -> int:
+        """
+        Read the matchmaking time from the screen using OCR.
+        Returns the time in seconds, or -1 if not found.
+        
+        The matchmaking time appears as "Matchmaking MM:SS" on the popup.
+        """
+        if not TESSERACT_AVAILABLE:
+            return -1
+        
+        try:
+            # Crop the area where matchmaking time appears
+            # Using relative coordinates (0-1 range) for resolution independence
+            # The "Matchmaking XX:XX" text is on the popup at approximately:
+            # x: 0.3125-0.5469, y: 0.176-0.208 (relative to screen size)
+            MATCHMAKING_TIME_REGION = {
+                "x1": 0.3125,  # 1200/3840
+                "y1": 0.176,   # 380/2160
+                "x2": 0.5469,  # 2100/3840
+                "y2": 0.208,   # 450/2160
+            }
+            
+            x1 = int(MATCHMAKING_TIME_REGION["x1"] * screenshot.width)
+            y1 = int(MATCHMAKING_TIME_REGION["y1"] * screenshot.height)
+            x2 = int(MATCHMAKING_TIME_REGION["x2"] * screenshot.width)
+            y2 = int(MATCHMAKING_TIME_REGION["y2"] * screenshot.height)
+            
+            time_region = screenshot.crop((x1, y1, x2, y2))
+            
+            # Convert to grayscale and enhance contrast for better OCR
+            time_array = np.array(time_region)
+            gray = cv2.cvtColor(time_array, cv2.COLOR_RGB2GRAY)
+            
+            # Threshold to make text clearer (100 works well)
+            _, thresh = cv2.threshold(gray, 100, 255, cv2.THRESH_BINARY)
+            
+            # Use pytesseract to read the text
+            text = pytesseract.image_to_string(thresh, config='--psm 7')
+            
+            # Look for time pattern MM:SS or M:SS
+            time_match = re.search(r'(\d{1,2}):(\d{2})', text)
+            if time_match:
+                minutes = int(time_match.group(1))
+                seconds = int(time_match.group(2))
+                total_seconds = minutes * 60 + seconds
+                return total_seconds
+            
+            return -1
+            
+        except Exception as e:
+            # OCR can fail for various reasons, don't crash
+            return -1
 
