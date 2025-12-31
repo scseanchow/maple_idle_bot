@@ -13,6 +13,7 @@ Press P to pause/unpause the bot.
 
 import time
 import signal
+import random
 import sys
 import os
 import select
@@ -460,6 +461,26 @@ class PartyQuestBot:
         print("╚" + "═" * 48 + "╝")
         print()
 
+    def unlock_screen(self):
+        print("  🔓 Sleep screen detected, swiping to unlock...")
+        lock_x, lock_y = self.BUTTONS["lock"]
+        # Swipe from lock position to right (70% across screen, same Y)
+        unlock_x = int(self.adb.screen_width * random.uniform(0.7, 0.8))
+        self.adb.swipe(lock_x, lock_y, unlock_x, lock_y - random.randint(0, 300), duration_ms=random.randint(300, 400))
+        time.sleep(fuzzy_time(CLICK_DELAY * 2))  # Wait for unlock animation
+        # attempt close active part quest queue if it exists
+        self.adb.tap(*self.BUTTONS["cancel_queue"], click_fuzziness_x=15, click_fuzziness_y=15)
+
+    def navigate_to_sleepy_wood_party_quest(self):
+        self.unlock_screen()
+        time.sleep(fuzzy_time(3))
+        self.adb.tap(*self.BUTTONS["cancel_queue"], click_fuzziness_x=10, click_fuzziness_y=10)
+        time.sleep(fuzzy_time(1.3))
+        self.adb.tap(*self.BUTTONS["settings"], click_fuzziness_x=20, click_fuzziness_y=20)
+        time.sleep(fuzzy_time(2.1))
+        self.adb.tap(*self.BUTTONS["party_quest"], click_fuzziness_x=10, click_fuzziness_y=10)
+        time.sleep(fuzzy_time(1.3))
+        self.adb.tap(*self.BUTTONS["sleepy_wood_pq"], click_fuzziness_x=200, click_fuzziness_y=350)
 
 def calibration_mode():
     """Helper mode to capture button positions and templates."""
