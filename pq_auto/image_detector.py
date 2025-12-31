@@ -116,21 +116,6 @@ class ImageDetector:
         if found_notice:
             return "ERROR_DIALOG"
         
-        # Check Auto Match FIRST - it's the "home" state and has highest confidence
-        # This prevents false positives from similar cyan buttons
-        found_auto, _, _, conf_auto = self.find_template(screenshot, "auto_match_btn")
-        if verbose and "auto_match_btn" in self.templates:
-            print(f"    [debug] auto_match_btn: conf={conf_auto:.3f} found={found_auto}")
-        if found_auto:
-            return "READY"
-        
-        # Check for Enter button (group/premade party mode)
-        found_enter, _, _, conf_enter = self.find_template(screenshot, "enter_btn")
-        if verbose and "enter_btn" in self.templates:
-            print(f"    [debug] enter_btn: conf={conf_enter:.3f} found={found_enter}")
-        if found_enter:
-            return "READY_GROUP"
-        
         # Check for CLEAR screen text FIRST (unique "CLEAR" banner only on clear screen)
         found_clear, _, _, conf_clear = self.find_template(screenshot, "clear_screen")
         if verbose and "clear_screen" in self.templates:
@@ -138,8 +123,8 @@ class ImageDetector:
         if found_clear:
             return "CLEAR"
         
-        # Check both Accept and Leave buttons, return whichever has higher confidence
-        # This prevents cross-matching between similar cyan buttons
+        # Check Accept and Leave buttons BEFORE ready states
+        # This ensures we detect match popups before detecting queue buttons behind them
         found_accept, _, _, conf_accept = self.find_template(screenshot, "accept_btn")
         found_leave, _, _, conf_leave = self.find_template(screenshot, "leave_btn")
         
@@ -158,6 +143,20 @@ class ImageDetector:
             return "MATCH_FOUND"
         elif found_leave:
             return "CLEAR"
+        
+        # Check Auto Match button (solo queue ready state)
+        found_auto, _, _, conf_auto = self.find_template(screenshot, "auto_match_btn")
+        if verbose and "auto_match_btn" in self.templates:
+            print(f"    [debug] auto_match_btn: conf={conf_auto:.3f} found={found_auto}")
+        if found_auto:
+            return "READY"
+        
+        # Check for Enter button (group/premade party ready state)
+        found_enter, _, _, conf_enter = self.find_template(screenshot, "enter_btn")
+        if verbose and "enter_btn" in self.templates:
+            print(f"    [debug] enter_btn: conf={conf_enter:.3f} found={found_enter}")
+        if found_enter:
+            return "READY_GROUP"
         
         # Check for matchmaking in progress indicator
         found, _, _, conf = self.find_template(screenshot, "matchmaking")
