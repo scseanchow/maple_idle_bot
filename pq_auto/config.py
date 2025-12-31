@@ -34,7 +34,8 @@ BUTTONS_RELATIVE = {
 
 # Template matching threshold (0-1, higher = stricter matching)
 # Lower this if detection is missing buttons, raise if getting false positives
-MATCH_THRESHOLD = 0.85
+# 0.90 prevents false positives from similar-looking cyan buttons
+MATCH_THRESHOLD = 0.90
 
 
 def fuzzy_time(base_time: float) -> float:
