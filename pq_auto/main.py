@@ -299,12 +299,6 @@ class PartyQuestBot:
                     self.adb.tap(*self.BUTTONS["cancel_queue"], click_fuzziness_x=10, click_fuzziness_y=10)  # Click X on matchmaking popup
                     time.sleep(fuzzy_time(CLICK_DELAY * 3))  # Wait for popup to close
                     self.state = BotState.IDLE  # Reset to re-queue
-                else:
-                    # Show screen time and pre-click Accept
-                    mins, secs = divmod(screen_time, 60)
-                    print(f"  → Pre-clicking Accept area... (queue: {mins}:{secs:02d})")
-                    self.adb.tap(*self.BUTTONS["accept"])
-                    self.state = BotState.QUEUING
             else:
                 # Fallback to internal timer if OCR fails
                 queue_time = time.time() - self.queue_start
@@ -313,10 +307,6 @@ class PartyQuestBot:
                     self.adb.tap(*self.BUTTONS["cancel_queue"], click_fuzziness_x=10, click_fuzziness_y=10)
                     time.sleep(fuzzy_time(CLICK_DELAY * 3))
                     self.state = BotState.IDLE
-                else:
-                    print(f"  → Pre-clicking Accept area... (queue: {int(queue_time)}s)")
-                    self.adb.tap(*self.BUTTONS["accept"])
-                    self.state = BotState.QUEUING
             
         elif detected_state == "IN_DUNGEON":
             # In dungeon - just wait, don't pre-click Leave
