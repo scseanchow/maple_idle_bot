@@ -14,7 +14,8 @@ DUNGEON_TIMEOUT = 360        # Max time for dungeon completion (6 min)
 CLICK_DELAY = 0.15           # Delay after clicking
 
 # Click Configuration
-CLICK_FUZZINESS = 10         # Random offset range for clicks (±pixels) to make clicks more human-like
+CLICK_FUZZINESS_X = 100         # Random offset range for clicks (±pixels) to make clicks more human-like
+CLICK_FUZZINESS_Y = 20         # Random offset range for clicks (±pixels) to make clicks more human-like
 
 # Timing Fuzziness Configuration
 TIMING_FUZZINESS = 0.15      # Random variation for timing (±15% of base value) to make behavior more human-like

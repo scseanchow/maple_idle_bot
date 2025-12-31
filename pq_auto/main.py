@@ -208,9 +208,15 @@ class PartyQuestBot:
                     elapsed = (datetime.now() - self.session_start).total_seconds()
                     if elapsed > self.max_runtime:
                         print(f"\n⏰ Maximum runtime of {self.max_runtime // 3600} hours reached!")
-                        print("  Stopping bot...")
-                        self.running = False
-                        break
+                        print("  Taking 4-hour break, then restarting...")
+                        self.adb.tap(*self.BUTTONS["cancel_queue"], click_fuzziness_x=10, click_fuzziness_y=10)
+                        time.sleep(fuzzy_time(CLICK_DELAY))
+                        # Take a 4-hour break
+                        time.sleep(fuzzy_time(4 * 60 * 60))
+                        # Navigate back to party quest after break
+                        self.navigate_to_sleepy_wood_party_quest()
+                        self.session_start = datetime.now()
+                        self.last_clear_time = time.time()  # Reset inactivity timer
                     
                     # REACTIVE LOGIC - respond to what we SEE, not what we expect
                     self._react_to_state(detected_state, screenshot)
@@ -226,6 +232,7 @@ class PartyQuestBot:
                     time.sleep(fuzzy_time(POLL_INTERVAL * 2))
         finally:
             self._restore_terminal()
+
         
         self._print_final_stats()
     
@@ -278,7 +285,7 @@ class PartyQuestBot:
                 # Use screen-detected time
                 if screen_time > QUEUE_TIMEOUT:
                     print(f"  ⚠ Queue timeout (screen shows {screen_time}s > {QUEUE_TIMEOUT}s), cancelling...")
-                    self.adb.tap(*self.BUTTONS["cancel_queue"])  # Click X on matchmaking popup
+                    self.adb.tap(*self.BUTTONS["cancel_queue"], click_fuzziness_x=10, click_fuzziness_y=10)  # Click X on matchmaking popup
                     time.sleep(fuzzy_time(CLICK_DELAY * 3))  # Wait for popup to close
                     self.state = BotState.IDLE  # Reset to re-queue
                 else:
@@ -292,7 +299,7 @@ class PartyQuestBot:
                 queue_time = time.time() - self.queue_start
                 if queue_time > QUEUE_TIMEOUT:
                     print(f"  ⚠ Queue timeout ({int(queue_time)}s), cancelling...")
-                    self.adb.tap(*self.BUTTONS["cancel_queue"])
+                    self.adb.tap(*self.BUTTONS["cancel_queue"], click_fuzziness_x=10, click_fuzziness_y=10)
                     time.sleep(fuzzy_time(CLICK_DELAY * 3))
                     self.state = BotState.IDLE
                 else:
@@ -305,6 +312,11 @@ class PartyQuestBot:
             self.state = BotState.IN_DUNGEON
             
         elif detected_state == "UNKNOWN":
+            found_sleep, _, _, _ = self.detector.find_template(screenshot, "sleep_screen")
+            if found_sleep:
+                print("  → Unknown state - detected SLEEP_SCREEN (template missed), unlocking...")
+                self.navigate_to_sleepy_wood_party_quest()
+                return 
             # Can't identify screen - but try to read queue time anyway
             # If we can read a matchmaking time, we're probably in queue
             screen_time = self.detector.read_matchmaking_time(screenshot)
@@ -314,7 +326,7 @@ class PartyQuestBot:
                 if screen_time > QUEUE_TIMEOUT:
                     mins, secs = divmod(screen_time, 60)
                     print(f"  ⚠ Queue timeout (screen shows {mins}:{secs:02d} > 3:00), cancelling...")
-                    self.adb.tap(*self.BUTTONS["cancel_queue"])
+                    self.adb.tap(*self.BUTTONS["cancel_queue"], click_fuzziness_x=10, click_fuzziness_y=10)
                     time.sleep(fuzzy_time(CLICK_DELAY * 3))
                     self.state = BotState.IDLE
                 else:
@@ -472,12 +484,16 @@ class PartyQuestBot:
         self.adb.tap(*self.BUTTONS["cancel_queue"], click_fuzziness_x=15, click_fuzziness_y=15)
 
     def navigate_to_sleepy_wood_party_quest(self):
+        """Unlock screen and navigate back to Sleepy Wood Party Quest."""
         self.unlock_screen()
-        time.sleep(fuzzy_time(3))
+        time.sleep(fuzzy_time(2))
+        # Close any active queue
         self.adb.tap(*self.BUTTONS["cancel_queue"], click_fuzziness_x=10, click_fuzziness_y=10)
         time.sleep(fuzzy_time(1.3))
+        # Open settings
         self.adb.tap(*self.BUTTONS["settings"], click_fuzziness_x=20, click_fuzziness_y=20)
         time.sleep(fuzzy_time(2.1))
+        # Click Party Quest
         self.adb.tap(*self.BUTTONS["party_quest"], click_fuzziness_x=10, click_fuzziness_y=10)
         time.sleep(fuzzy_time(1.3))
         self.adb.tap(*self.BUTTONS["sleepy_wood_pq"], click_fuzziness_x=200, click_fuzziness_y=350)
