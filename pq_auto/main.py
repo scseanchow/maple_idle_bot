@@ -255,6 +255,11 @@ class PartyQuestBot:
             self.queue_start = time.time()
             self.last_clear_counted = False  # Reset for new run
             
+        elif detected_state == "SLEEP_SCREEN":
+            print("  → Detected SLEEP_SCREEN, unlocking...")
+            self.navigate_to_sleepy_wood_party_quest()
+            return
+            
         elif detected_state == "MATCH_FOUND":
             # Accept popup visible - click Accept immediately
             print("  → Clicking Accept...")
@@ -278,6 +283,12 @@ class PartyQuestBot:
             self.state = BotState.IDLE  # Reset to try again
             
         elif detected_state == "QUEUING":
+            found_sleep, _, _, _ = self.detector.find_template(screenshot, "sleep_screen")
+            if found_sleep:
+                print("  → Unknown state - detected SLEEP_SCREEN (template missed), unlocking...")
+                self.navigate_to_sleepy_wood_party_quest()
+                return 
+
             # Try to read actual matchmaking time from screen
             screen_time = self.detector.read_matchmaking_time(screenshot)
             
@@ -341,11 +352,6 @@ class PartyQuestBot:
             elif self.state == BotState.IN_DUNGEON:
                 # In dungeon but unknown state - just wait, don't pre-click
                 print("  → Unknown state (in dungeon), waiting...")
-            else:
-                # Not sure, try both
-                print("  → Unknown state, clicking Accept + Leave...")
-                self.adb.tap(*self.BUTTONS["accept"])
-                self.adb.tap(*self.BUTTONS["leave"])
     
     def _handle_idle(self, detected_state: str, screenshot):
         """Handle IDLE state - click Auto Match to start queue."""
