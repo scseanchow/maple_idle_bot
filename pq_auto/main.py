@@ -3,7 +3,8 @@
 MapleStory Idle - Party Quest Auto Bot
 
 Usage:
-    python main.py              Run the bot
+    python main.py              Run the bot (solo queue - Auto Match)
+    python main.py --group      Run the bot (group/premade - Enter button)
     python main.py --calibrate  Capture screenshots for template setup
     
 Press Ctrl+C to stop the bot gracefully.
@@ -36,13 +37,17 @@ class BotState(Enum):
 
 
 class PartyQuestBot:
-    def __init__(self):
+    def __init__(self, group_mode: bool = False):
+        self.group_mode = group_mode
         self._print_banner()
         
         self.adb = ADBController()
         self.detector = ImageDetector()
         # Get buttons from ADBController (auto-scaled to current screen size)
         self.BUTTONS = self.adb.BUTTONS
+        
+        # Set the queue button based on mode
+        self.queue_button = "enter" if group_mode else "auto_match"
         
         self.state = BotState.IDLE
         self.clear_count = 0
@@ -68,10 +73,12 @@ class PartyQuestBot:
         signal.signal(signal.SIGTERM, self._signal_handler)
     
     def _print_banner(self):
+        mode_str = "GROUP MODE" if self.group_mode else "SOLO MODE"
         print()
         print("╔" + "═" * 48 + "╗")
         print("║   MapleStory Idle - Party Quest Auto Bot      ║")
         print("╠" + "═" * 48 + "╣")
+        print(f"║   Mode: {mode_str:37}  ║")
         print("║   Press Ctrl+C to stop                        ║")
         print("╚" + "═" * 48 + "╝")
         print()
@@ -85,7 +92,7 @@ class PartyQuestBot:
         """Tap all three button locations in quick succession."""
         self.adb.tap(*self.BUTTONS["accept"])
         self.adb.tap(*self.BUTTONS["leave"])
-        self.adb.tap(*self.BUTTONS["auto_match"])
+        self.adb.tap(*self.BUTTONS[self.queue_button])
     
     def _print_status(self):
         elapsed = datetime.now() - self.session_start
@@ -163,8 +170,8 @@ class PartyQuestBot:
     def _react_to_state(self, detected_state: str, screenshot):
         """React to detected state - click the appropriate next action."""
         
-        if detected_state == "READY":
-            # We see Auto Match button - click it to queue
+        if detected_state == "READY" or detected_state == "READY_GROUP":
+            # We see queue button - click it to queue
             # But first check if we came from a dungeon (spam-click worked, skipped CLEAR)
             if self.state == BotState.IN_DUNGEON and not self.last_clear_counted:
                 dungeon_time = time.time() - self.dungeon_start
@@ -172,8 +179,9 @@ class PartyQuestBot:
                     print("  ★ Clear detected via state transition (spam-click worked)")
                     self._complete_dungeon()
             
-            print("  → Clicking Auto Match...")
-            self.adb.tap(*self.BUTTONS["auto_match"])
+            button_name = "Enter" if self.group_mode else "Auto Match"
+            print(f"  → Clicking {button_name}...")
+            self.adb.tap(*self.BUTTONS[self.queue_button])
             self.state = BotState.QUEUING
             self.queue_start = time.time()
             self.last_clear_counted = False  # Reset for new run
@@ -465,10 +473,11 @@ def main():
     script_dir = Path(__file__).parent.absolute()
     os.chdir(script_dir)
     
-    if len(sys.argv) > 1 and sys.argv[1] == "--calibrate":
+    if "--calibrate" in sys.argv:
         calibration_mode()
     else:
-        bot = PartyQuestBot()
+        group_mode = "--group" in sys.argv
+        bot = PartyQuestBot(group_mode=group_mode)
         bot.run()
 
 

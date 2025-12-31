@@ -106,7 +106,7 @@ class ImageDetector:
     def detect_state(self, screenshot: Image.Image, verbose: bool = False) -> str:
         """
         Detect current game state from screenshot.
-        Returns one of: READY, QUEUING, MATCH_FOUND, IN_DUNGEON, CLEAR, ERROR_DIALOG, UNKNOWN
+        Returns one of: READY, READY_GROUP, QUEUING, MATCH_FOUND, IN_DUNGEON, CLEAR, ERROR_DIALOG, UNKNOWN
         """
         # Check for error/notice dialog FIRST - these block everything and must be dismissed
         # Detect by the "Notice" banner text (more unique than OK button)
@@ -123,6 +123,13 @@ class ImageDetector:
             print(f"    [debug] auto_match_btn: conf={conf_auto:.3f} found={found_auto}")
         if found_auto:
             return "READY"
+        
+        # Check for Enter button (group/premade party mode)
+        found_enter, _, _, conf_enter = self.find_template(screenshot, "enter_btn")
+        if verbose and "enter_btn" in self.templates:
+            print(f"    [debug] enter_btn: conf={conf_enter:.3f} found={found_enter}")
+        if found_enter:
+            return "READY_GROUP"
         
         # Check for CLEAR screen text FIRST (unique "CLEAR" banner only on clear screen)
         found_clear, _, _, conf_clear = self.find_template(screenshot, "clear_screen")

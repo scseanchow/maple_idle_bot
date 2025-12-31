@@ -23,7 +23,8 @@ TIMING_FUZZINESS = 0.15      # Random variation for timing (±15% of base value)
 # These were calibrated for 1920x1080 and will scale to any resolution
 # Format: (x_percentage, y_percentage) where 0.0 = left/top, 1.0 = right/bottom
 BUTTONS_RELATIVE = {
-    "auto_match": (0.8802, 0.9306),  # Auto Match button (bottom right, cyan)
+    "auto_match": (0.8802, 0.9306),  # Auto Match button (bottom right, green) - solo queue
+    "enter": (0.6328, 0.9028),       # Enter button (cyan) - group/premade party
     "accept": (0.5, 0.7454),         # Accept button in matchmaking popup (centered)
     "leave": (0.5, 0.9352),          # Leave button on clear screen
     "ok": (0.5, 0.6546),             # OK button on error/notice dialogs (centered)
