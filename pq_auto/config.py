@@ -28,6 +28,11 @@ BUTTONS_RELATIVE = {
     "leave": (0.5, 0.9352),          # Leave button on clear screen
     "ok": (0.5, 0.6546),             # OK button on error/notice dialogs (centered)
     "jump": (0.8802, 0.9506),        # Jump button (centered)
+    "lock": (0.5, 0.8),              # Lock button position (left side, bottom) for unlock swipe
+    "close_queue": (0.618, 0.13),    # Close queue button
+    "settings": (0.96, 0.047),        # Settings button (top right)
+    "party_quest": (0.88, 0.53),      # Party Quest button (bottom right)
+    "sleepy_wood_pq": (0.15, 0.48),     # Sleepy Wood Party Quest button (centered)
 }
 
 # Template matching threshold (0-1, higher = stricter matching)

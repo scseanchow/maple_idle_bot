@@ -102,11 +102,11 @@ class ADBController:
             raise RuntimeError(f"Screenshot failed: {result.stderr.decode()}")
         return Image.open(io.BytesIO(result.stdout))
     
-    def tap(self, x: int, y: int):
+    def tap(self, x: int, y: int, click_fuzziness_x: int = CLICK_FUZZINESS_X, click_fuzziness_y: int = CLICK_FUZZINESS_Y):
         """Send tap event to emulator with random offset for human-like behavior."""
         # Add random offset to coordinates (±CLICK_FUZZINESS pixels)
-        offset_x = random.randint(-CLICK_FUZZINESS_X, CLICK_FUZZINESS_X)
-        offset_y = random.randint(-CLICK_FUZZINESS_Y, CLICK_FUZZINESS_Y)
+        offset_x = random.randint(-click_fuzziness_x, click_fuzziness_x)
+        offset_y = random.randint(-click_fuzziness_y, click_fuzziness_y)
         fuzzy_x = max(0, min(self.screen_width - 1, x + offset_x))  # Clamp to screen bounds
         fuzzy_y = max(0, min(self.screen_height - 1, y + offset_y))  # Clamp to screen bounds
         

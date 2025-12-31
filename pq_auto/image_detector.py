@@ -98,9 +98,16 @@ class ImageDetector:
     def detect_state(self, screenshot: Image.Image, verbose: bool = False) -> str:
         """
         Detect current game state from screenshot.
-        Returns one of: READY, QUEUING, MATCH_FOUND, IN_DUNGEON, CLEAR, ERROR_DIALOG, UNKNOWN
+        Returns one of: READY, QUEUING, MATCH_FOUND, IN_DUNGEON, CLEAR, ERROR_DIALOG, SLEEP_SCREEN, UNKNOWN
         """
-        # Check for error/notice dialog FIRST - these block everything and must be dismissed
+        # Check for sleep screen FIRST - this blocks everything and must be unlocked
+        found_sleep, _, _, conf_sleep = self.find_template(screenshot, "sleep_screen")
+        if verbose and "sleep_screen" in self.templates:
+            print(f"    [debug] sleep_screen: conf={conf_sleep:.3f} found={found_sleep}")
+        if found_sleep:
+            return "SLEEP_SCREEN"
+        
+        # Check for error/notice dialog - these block everything and must be dismissed
         # Detect by the "Notice" banner text (more unique than OK button)
         found_notice, _, _, conf_notice = self.find_template(screenshot, "notice_banner")
         if verbose and "notice_banner" in self.templates:

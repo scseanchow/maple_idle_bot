@@ -133,19 +133,22 @@ class PartyQuestBot:
                 
                 # Check for inactivity timeout (no clears in 30 min)
                 time_since_clear = time.time() - self.last_clear_time
-                if time_since_clear > self.inactivity_timeout:
+                if time_since_clear > self.inactivity_timeout :
                     print(f"\n⚠ No successful clears in {self.inactivity_timeout // 60} minutes!")
                     print("  Stopping bot due to inactivity...")
                     self.running = False
-                    break
                 
                 # Check for max runtime (8 hours)
                 elapsed = (datetime.now() - self.session_start).total_seconds()
-                if elapsed > self.max_runtime and detected_state == "IN_DUNGEON":
+                if elapsed > self.max_runtime:
                     print(f"\n⏰ Maximum runtime of {self.max_runtime // 3600} hours reached!")
                     print("  Stopping bot...")
+                    self.adb.tap(*self.BUTTONS["close_queue"], click_fuzziness_x=10, click_fuzziness_y=10)
                     self.running = False
-                    break
+                    time.sleep(fuzzy_time(4 * 60 * 60))
+                    self.navigate_to_sleepy_wood_party_quest()
+                    self.running = True
+                    self.session_start = datetime.now()
                 
                 # REACTIVE LOGIC - respond to what we SEE, not what we expect
                 self._react_to_state(detected_state, screenshot)
@@ -199,6 +202,9 @@ class PartyQuestBot:
             print("  → Clicking Leave...")
             self.adb.tap(*self.BUTTONS["leave"])
             
+        elif detected_state == "SLEEP_SCREEN":
+            self.unlock_screen()
+
         elif detected_state == "ERROR_DIALOG":
             # Error/notice dialog visible - click OK to dismiss and re-queue
             print("  ⚠ Error dialog detected, clicking OK...")
@@ -233,6 +239,13 @@ class PartyQuestBot:
                     print("  Stopping bot as a safety measure.")
                     self.running = False
                     return
+
+            # First check for sleep screen (might have been missed by template matching)
+            found_sleep, _, _, _ = self.detector.find_template(screenshot, "sleep_screen")
+            if found_sleep:
+                print("  → Unknown state - detected SLEEP_SCREEN (template missed), unlocking...")
+                self.unlock_screen()
+                return  # Exit early after unlocking
 
             # Can't identify screen - try to detect likely states based on context
             if self.state == BotState.QUEUING:
@@ -407,6 +420,26 @@ class PartyQuestBot:
         print("╚" + "═" * 48 + "╝")
         print()
 
+    def unlock_screen(self):
+        print("  🔓 Sleep screen detected, swiping to unlock...")
+        lock_x, lock_y = self.BUTTONS["lock"]
+        # Swipe from lock position to right (70% across screen, same Y)
+        unlock_x = int(self.adb.screen_width * random.uniform(0.7, 0.8))
+        self.adb.swipe(lock_x, lock_y, unlock_x, lock_y - random.randint(0, 300), duration_ms=random.randint(300, 400))
+        time.sleep(fuzzy_time(CLICK_DELAY * 2))  # Wait for unlock animation
+        # attempt close active part quest queue if it exists
+        self.adb.tap(*self.BUTTONS["close_queue"], click_fuzziness_x=15, click_fuzziness_y=15)
+    
+    def navigate_to_sleepy_wood_party_quest(self):
+        self.unlock_screen()
+        time.sleep(fuzzy_time(3))
+        self.adb.tap(*self.BUTTONS["close_queue"], click_fuzziness_x=10, click_fuzziness_y=10)
+        time.sleep(fuzzy_time(1.3))
+        self.adb.tap(*self.BUTTONS["settings"], click_fuzziness_x=20, click_fuzziness_y=20)
+        time.sleep(fuzzy_time(2.1))
+        self.adb.tap(*self.BUTTONS["party_quest"], click_fuzziness_x=10, click_fuzziness_y=10)
+        time.sleep(fuzzy_time(1.3))
+        self.adb.tap(*self.BUTTONS["sleepy_wood_pq"], click_fuzziness_x=200, click_fuzziness_y=350)
 
 def calibration_mode():
     """Helper mode to capture button positions and templates."""
