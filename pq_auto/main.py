@@ -8,12 +8,16 @@ Usage:
     python main.py --calibrate  Capture screenshots for template setup
     
 Press Ctrl+C to stop the bot gracefully.
+Press P to pause/unpause the bot.
 """
 
 import time
 import signal
 import sys
 import os
+import select
+import termios
+import tty
 from datetime import datetime
 from enum import Enum, auto
 from pathlib import Path
@@ -53,6 +57,7 @@ class PartyQuestBot:
         self.clear_count = 0
         self.session_start = datetime.now()
         self.running = True
+        self.paused = False
         
         # Timestamps for timeout tracking
         self.queue_start = 0
@@ -68,6 +73,9 @@ class PartyQuestBot:
         # Maximum runtime (8 hours = stop bot)
         self.max_runtime = 8 * 60 * 60  # 8 hours in seconds
         
+        # Terminal settings for non-blocking input
+        self.old_settings = None
+        
         # Handle Ctrl+C gracefully
         signal.signal(signal.SIGINT, self._signal_handler)
         signal.signal(signal.SIGTERM, self._signal_handler)
@@ -79,14 +87,43 @@ class PartyQuestBot:
         print("║   MapleStory Idle - Party Quest Auto Bot      ║")
         print("╠" + "═" * 48 + "╣")
         print(f"║   Mode: {mode_str:37}  ║")
+        print("║   Press P to pause/unpause                    ║")
         print("║   Press Ctrl+C to stop                        ║")
         print("╚" + "═" * 48 + "╝")
         print()
     
     def _signal_handler(self, sig, frame):
         print("\n\n⚠ Stopping bot gracefully...")
+        self._restore_terminal()
         self.running = False
         self.state = BotState.STOPPED
+    
+    def _setup_terminal(self):
+        """Set terminal to raw mode for non-blocking key detection."""
+        try:
+            self.old_settings = termios.tcgetattr(sys.stdin)
+            tty.setcbreak(sys.stdin.fileno())
+        except Exception:
+            self.old_settings = None
+    
+    def _restore_terminal(self):
+        """Restore terminal to original settings."""
+        if self.old_settings:
+            try:
+                termios.tcsetattr(sys.stdin, termios.TCSADRAIN, self.old_settings)
+            except Exception:
+                pass
+    
+    def _check_keyboard(self):
+        """Check for keyboard input without blocking. Returns True if 'p' pressed."""
+        try:
+            if select.select([sys.stdin], [], [], 0)[0]:
+                key = sys.stdin.read(1).lower()
+                if key == 'p':
+                    return True
+        except Exception:
+            pass
+        return False
     
     def tap_all_buttons(self):
         """Tap all three button locations in quick succession."""
@@ -99,17 +136,22 @@ class PartyQuestBot:
         elapsed_str = str(elapsed).split('.')[0]
         
         # Create a nice status line
-        status_icon = {
-            BotState.IDLE: "⏸",
-            BotState.QUEUING: "🔍",
-            BotState.MATCH_FOUND: "✓",
-            BotState.IN_DUNGEON: "⚔",
-            BotState.CLEAR: "🎉",
-            BotState.STOPPED: "⏹",
-        }.get(self.state, "?")
+        if self.paused:
+            status_icon = "⏸"
+            state_name = "PAUSED"
+        else:
+            status_icon = {
+                BotState.IDLE: "▶",
+                BotState.QUEUING: "🔍",
+                BotState.MATCH_FOUND: "✓",
+                BotState.IN_DUNGEON: "⚔",
+                BotState.CLEAR: "🎉",
+                BotState.STOPPED: "⏹",
+            }.get(self.state, "?")
+            state_name = self.state.name
         
         print(f"\n[{datetime.now().strftime('%H:%M:%S')}] "
-              f"{status_icon} {self.state.name:12} | "
+              f"{status_icon} {state_name:12} | "
               f"Clears: {self.clear_count} | "
               f"Session: {elapsed_str}")
     
@@ -123,47 +165,66 @@ class PartyQuestBot:
             print("  The bot will use fallback detection which may be less accurate.")
             print("  Run 'python main.py --calibrate' to set up templates.\n")
         
-        while self.running:
-            try:
-                self._print_status()
-                screenshot = self.adb.screenshot()
-                
-                # Detect what's on screen
-                if self.detector.templates:
-                    detected_state = self.detector.detect_state(screenshot, verbose=True)
-                else:
-                    detected_state = self.detector.detect_state_with_fallback(screenshot)
-                
-                print(f"  Detected: {detected_state}")
-                
-                # Check for inactivity timeout (no clears in 30 min)
-                time_since_clear = time.time() - self.last_clear_time
-                if time_since_clear > self.inactivity_timeout:
-                    print(f"\n⚠ No successful clears in {self.inactivity_timeout // 60} minutes!")
-                    print("  Stopping bot due to inactivity...")
-                    self.running = False
+        # Set up terminal for non-blocking keyboard input
+        self._setup_terminal()
+        
+        try:
+            while self.running:
+                try:
+                    # Check for pause toggle
+                    if self._check_keyboard():
+                        self.paused = not self.paused
+                        if self.paused:
+                            print("\n⏸ PAUSED - Press P to resume...")
+                        else:
+                            print("\n▶ RESUMED")
+                    
+                    # If paused, just wait and check for unpause
+                    if self.paused:
+                        time.sleep(0.1)
+                        continue
+                    
+                    self._print_status()
+                    screenshot = self.adb.screenshot()
+                    
+                    # Detect what's on screen
+                    if self.detector.templates:
+                        detected_state = self.detector.detect_state(screenshot, verbose=True)
+                    else:
+                        detected_state = self.detector.detect_state_with_fallback(screenshot)
+                    
+                    print(f"  Detected: {detected_state}")
+                    
+                    # Check for inactivity timeout (no clears in 30 min)
+                    time_since_clear = time.time() - self.last_clear_time
+                    if time_since_clear > self.inactivity_timeout:
+                        print(f"\n⚠ No successful clears in {self.inactivity_timeout // 60} minutes!")
+                        print("  Stopping bot due to inactivity...")
+                        self.running = False
+                        break
+                    
+                    # Check for max runtime (8 hours)
+                    elapsed = (datetime.now() - self.session_start).total_seconds()
+                    if elapsed > self.max_runtime:
+                        print(f"\n⏰ Maximum runtime of {self.max_runtime // 3600} hours reached!")
+                        print("  Stopping bot...")
+                        self.running = False
+                        break
+                    
+                    # REACTIVE LOGIC - respond to what we SEE, not what we expect
+                    self._react_to_state(detected_state, screenshot)
+                    
+                    time.sleep(fuzzy_time(POLL_INTERVAL))
+                    
+                except KeyboardInterrupt:
                     break
-                
-                # Check for max runtime (8 hours)
-                elapsed = (datetime.now() - self.session_start).total_seconds()
-                if elapsed > self.max_runtime:
-                    print(f"\n⏰ Maximum runtime of {self.max_runtime // 3600} hours reached!")
-                    print("  Stopping bot...")
-                    self.running = False
-                    break
-                
-                # REACTIVE LOGIC - respond to what we SEE, not what we expect
-                self._react_to_state(detected_state, screenshot)
-                
-                time.sleep(fuzzy_time(POLL_INTERVAL))
-                
-            except KeyboardInterrupt:
-                break
-            except Exception as e:
-                print(f"❌ Error: {e}")
-                import traceback
-                traceback.print_exc()
-                time.sleep(fuzzy_time(POLL_INTERVAL * 2))
+                except Exception as e:
+                    print(f"❌ Error: {e}")
+                    import traceback
+                    traceback.print_exc()
+                    time.sleep(fuzzy_time(POLL_INTERVAL * 2))
+        finally:
+            self._restore_terminal()
         
         self._print_final_stats()
     
