@@ -259,7 +259,7 @@ class PartyQuestBot:
             print("  → Detected SLEEP_SCREEN, unlocking...")
             self.navigate_to_sleepy_wood_party_quest()
             return
-            
+
         elif detected_state == "MATCH_FOUND":
             # Accept popup visible - click Accept immediately
             print("  → Clicking Accept...")
@@ -400,10 +400,6 @@ class PartyQuestBot:
         elif time.time() - self.queue_start > fuzzy_time(MATCHMAKING_TIMEOUT):
             print("  ⚠ Queue timeout, restarting...")
             self.state = BotState.IDLE
-        else:
-            # Spam-click Accept area while waiting - catches popup instantly
-            print("  → Pre-clicking Accept area...")
-            self.adb.tap(*self.BUTTONS["accept"])
     
     def _handle_match_found(self, detected_state: str, screenshot):
         """Handle MATCH_FOUND state - click Accept."""
