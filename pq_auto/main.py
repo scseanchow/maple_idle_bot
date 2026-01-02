@@ -18,6 +18,7 @@ import os
 import select
 import termios
 import tty
+import threading
 from datetime import datetime
 from enum import Enum, auto
 from pathlib import Path
@@ -99,12 +100,16 @@ class PartyQuestBot:
         self.state = BotState.STOPPED
     
     def _setup_terminal(self):
-        """Set terminal to raw mode for non-blocking key detection."""
+        """Set terminal to raw mode and start keyboard listener thread."""
         try:
             self.old_settings = termios.tcgetattr(sys.stdin)
             tty.setcbreak(sys.stdin.fileno())
         except Exception:
             self.old_settings = None
+        
+        # Start keyboard listener thread
+        self._keyboard_thread = threading.Thread(target=self._keyboard_listener, daemon=True)
+        self._keyboard_thread.start()
     
     def _restore_terminal(self):
         """Restore terminal to original settings."""
@@ -114,16 +119,20 @@ class PartyQuestBot:
             except Exception:
                 pass
     
-    def _check_keyboard(self):
-        """Check for keyboard input without blocking. Returns True if 'p' pressed."""
-        try:
-            if select.select([sys.stdin], [], [], 0)[0]:
-                key = sys.stdin.read(1).lower()
-                if key == 'p':
-                    return True
-        except Exception:
-            pass
-        return False
+    def _keyboard_listener(self):
+        """Background thread that listens for keyboard input."""
+        while self.running:
+            try:
+                if select.select([sys.stdin], [], [], 0.1)[0]:
+                    key = sys.stdin.read(1).lower()
+                    if key == 'p':
+                        self.paused = not self.paused
+                        if self.paused:
+                            print("\n\n⏸ PAUSED - Press P to resume...")
+                        else:
+                            print("\n\n▶ RESUMED\n")
+            except Exception:
+                pass
     
     def tap_all_buttons(self):
         """Tap all three button locations in quick succession."""
@@ -171,15 +180,7 @@ class PartyQuestBot:
         try:
             while self.running:
                 try:
-                    # Check for pause toggle
-                    if self._check_keyboard():
-                        self.paused = not self.paused
-                        if self.paused:
-                            print("\n⏸ PAUSED - Press P to resume...")
-                        else:
-                            print("\n▶ RESUMED")
-                    
-                    # If paused, just wait and check for unpause
+                    # If paused, just wait (keyboard thread handles unpause)
                     if self.paused:
                         time.sleep(0.1)
                         continue
