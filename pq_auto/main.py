@@ -16,12 +16,17 @@ import signal
 import random
 import sys
 import os
-import select
-import termios
-import tty
 from datetime import datetime
 from enum import Enum, auto
 from pathlib import Path
+
+# Cross-platform keyboard input
+if sys.platform == 'win32':
+    import msvcrt
+else:
+    import select
+    import termios
+    import tty
 
 from adb_controller import ADBController
 from image_detector import ImageDetector
@@ -101,15 +106,20 @@ class PartyQuestBot:
     
     def _setup_terminal(self):
         """Set terminal to raw mode for non-blocking key detection."""
-        try:
-            self.old_settings = termios.tcgetattr(sys.stdin)
-            tty.setcbreak(sys.stdin.fileno())
-        except Exception:
+        if sys.platform == 'win32':
+            # Windows doesn't need terminal setup for msvcrt
             self.old_settings = None
+        else:
+            # Unix/Linux: set terminal to raw mode
+            try:
+                self.old_settings = termios.tcgetattr(sys.stdin)
+                tty.setcbreak(sys.stdin.fileno())
+            except Exception:
+                self.old_settings = None
     
     def _restore_terminal(self):
         """Restore terminal to original settings."""
-        if self.old_settings:
+        if sys.platform != 'win32' and self.old_settings:
             try:
                 termios.tcsetattr(sys.stdin, termios.TCSADRAIN, self.old_settings)
             except Exception:
@@ -117,13 +127,29 @@ class PartyQuestBot:
     
     def _check_keyboard(self):
         """Check for keyboard input without blocking. Returns True if 'p' pressed."""
-        try:
-            if select.select([sys.stdin], [], [], 0)[0]:
-                key = sys.stdin.read(1).lower()
-                if key == 'p':
-                    return True
-        except Exception:
-            pass
+        if sys.platform == 'win32':
+            # Windows: use msvcrt for non-blocking keyboard input
+            try:
+                if msvcrt.kbhit():
+                    key_bytes = msvcrt.getch()
+                    # Try to decode, fallback to latin-1 if utf-8 fails
+                    try:
+                        key = key_bytes.decode('utf-8').lower()
+                    except UnicodeDecodeError:
+                        key = key_bytes.decode('latin-1').lower()
+                    if key == 'p':
+                        return True
+            except Exception:
+                pass
+        else:
+            # Unix/Linux: use select for non-blocking input
+            try:
+                if select.select([sys.stdin], [], [], 0)[0]:
+                    key = sys.stdin.read(1).lower()
+                    if key == 'p':
+                        return True
+            except Exception:
+                pass
         return False
     
     def tap_all_buttons(self):
