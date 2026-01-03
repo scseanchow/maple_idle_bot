@@ -60,6 +60,10 @@ class PartyQuestBot:
         self.running = True
         self.paused = False
         
+        # Pause time tracking
+        self.total_paused_seconds = 0.0
+        self.pause_start_time = None
+        
         # Timestamps for timeout tracking
         self.queue_start = 0
         self.dungeon_start = 0
@@ -128,8 +132,13 @@ class PartyQuestBot:
                     if key == 'p':
                         self.paused = not self.paused
                         if self.paused:
+                            self.pause_start_time = time.time()
                             print("\n\n⏸ PAUSED - Press P to resume...")
                         else:
+                            # Add paused duration to total
+                            if self.pause_start_time:
+                                self.total_paused_seconds += time.time() - self.pause_start_time
+                                self.pause_start_time = None
                             print("\n\n▶ RESUMED\n")
             except Exception:
                 pass
@@ -140,9 +149,21 @@ class PartyQuestBot:
         self.adb.tap(*self.BUTTONS["leave"])
         self.adb.tap(*self.BUTTONS[self.queue_button])
     
+    def _get_active_elapsed_seconds(self) -> float:
+        """Get elapsed time excluding paused time."""
+        total_elapsed = (datetime.now() - self.session_start).total_seconds()
+        paused = self.total_paused_seconds
+        # If currently paused, add current pause duration
+        if self.paused and self.pause_start_time:
+            paused += time.time() - self.pause_start_time
+        return total_elapsed - paused
+    
     def _print_status(self):
-        elapsed = datetime.now() - self.session_start
-        elapsed_str = str(elapsed).split('.')[0]
+        # Use active time (excluding paused time)
+        active_seconds = self._get_active_elapsed_seconds()
+        hours, remainder = divmod(int(active_seconds), 3600)
+        minutes, seconds = divmod(remainder, 60)
+        elapsed_str = f"{hours}:{minutes:02d}:{seconds:02d}"
         
         # Create a nice status line
         if self.paused:
@@ -204,8 +225,8 @@ class PartyQuestBot:
                         self.running = False
                         break
                     
-                    # Check for max runtime (8 hours)
-                    elapsed = (datetime.now() - self.session_start).total_seconds()
+                    # Check for max runtime (8 hours of active time, excluding pauses)
+                    elapsed = self._get_active_elapsed_seconds()
                     if elapsed > self.max_runtime:
                         print(f"\n⏰ Maximum runtime of {self.max_runtime // 3600} hours reached!")
                         print("  Stopping bot...")
@@ -445,17 +466,26 @@ class PartyQuestBot:
     
     def _print_final_stats(self):
         """Print session statistics."""
-        elapsed = datetime.now() - self.session_start
-        elapsed_str = str(elapsed).split('.')[0]
+        # Calculate active time (excluding pauses)
+        active_seconds = self._get_active_elapsed_seconds()
+        hours, remainder = divmod(int(active_seconds), 3600)
+        minutes, seconds = divmod(remainder, 60)
+        active_str = f"{hours}:{minutes:02d}:{seconds:02d}"
+        
+        # Calculate total time
+        total_elapsed = datetime.now() - self.session_start
+        total_str = str(total_elapsed).split('.')[0]
         
         print("\n")
         print("╔" + "═" * 48 + "╗")
         print("║              Session Complete!                 ║")
         print("╠" + "═" * 48 + "╣")
         print(f"║  Total Clears:    {self.clear_count:<28}║")
-        print(f"║  Session Time:    {elapsed_str:<28}║")
+        print(f"║  Active Time:     {active_str:<28}║")
+        if self.total_paused_seconds > 0:
+            print(f"║  Total Time:      {total_str:<28}║")
         if self.clear_count > 0:
-            avg_time = elapsed.total_seconds() / self.clear_count
+            avg_time = active_seconds / self.clear_count
             avg_str = f"{avg_time:.1f} seconds"
             print(f"║  Avg Time/Clear:  {avg_str:<28}║")
         print("╚" + "═" * 48 + "╝")
