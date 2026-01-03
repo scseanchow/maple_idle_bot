@@ -22,6 +22,7 @@ Thumbs.db
 pq_auto/calibration_*.png
 pq_auto/test_*.png
 pq_auto/templates/*.png
+pq_auto/templates.zip
 test_screenshot.png
 *.log
 
