@@ -570,6 +570,7 @@ def calibration_mode():
 
 def select_device_menu() -> str:
     """Interactive menu to select a device from available options."""
+    print("  Scanning for devices...")
     devices = ADBController.list_devices()
     
     if not devices:
@@ -579,21 +580,25 @@ def select_device_menu() -> str:
         return None
     
     if len(devices) == 1:
-        print(f"✓ Found 1 device: {devices[0][0]}")
+        desc = f" ({devices[0][2]})" if devices[0][2] else ""
+        print(f"✓ Found 1 device: {devices[0][0]}{desc}")
         return devices[0][0]
     
     # Multiple devices - show selection menu
     print()
-    print("╔" + "═" * 48 + "╗")
-    print("║           Select Device                        ║")
-    print("╠" + "═" * 48 + "╣")
+    print("╔" + "═" * 52 + "╗")
+    print("║              Select Device                         ║")
+    print("╠" + "═" * 52 + "╣")
     
     for i, (device_id, status, desc) in enumerate(devices, 1):
-        desc_str = f" ({desc})" if desc else ""
-        line = f"{i}. {device_id}{desc_str}"
-        print(f"║  {line:44} ║")
+        if desc:
+            # Show name prominently, device ID smaller
+            line = f"{i}. {desc} [{device_id}]"
+        else:
+            line = f"{i}. {device_id}"
+        print(f"║  {line:48} ║")
     
-    print("╚" + "═" * 48 + "╝")
+    print("╚" + "═" * 52 + "╝")
     print()
     
     while True:
@@ -611,6 +616,7 @@ def select_device_menu() -> str:
 
 def list_devices_cmd():
     """List all connected devices and exit."""
+    print("Scanning for devices...")
     devices = ADBController.list_devices()
     
     if not devices:
@@ -620,12 +626,15 @@ def list_devices_cmd():
     
     print()
     print(f"Found {len(devices)} device(s):")
-    print("-" * 50)
+    print("-" * 55)
     for device_id, status, desc in devices:
-        desc_str = f" ({desc})" if desc else ""
-        print(f"  {device_id}{desc_str}")
-    print("-" * 50)
-    print()
+        if desc:
+            print(f"  {desc}")
+            print(f"    ID: {device_id}")
+        else:
+            print(f"  {device_id}")
+        print()
+    print("-" * 55)
     print("Usage: python main.py --device <device_id>")
 
 

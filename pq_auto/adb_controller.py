@@ -34,6 +34,39 @@ class ADBController:
         self.buttons = self._calculate_button_coordinates()
     
     @staticmethod
+    def get_device_name(device_id: str) -> str:
+        """Get a friendly name for a device by querying its properties."""
+        try:
+            # Try to get device name from settings (works on most Android devices)
+            result = subprocess.run(
+                ["adb", "-s", device_id, "shell", "settings", "get", "global", "device_name"],
+                capture_output=True, text=True, timeout=3
+            )
+            if result.returncode == 0 and result.stdout.strip() and result.stdout.strip() != "null":
+                return result.stdout.strip()
+            
+            # Try product model
+            result = subprocess.run(
+                ["adb", "-s", device_id, "shell", "getprop", "ro.product.model"],
+                capture_output=True, text=True, timeout=3
+            )
+            if result.returncode == 0 and result.stdout.strip():
+                return result.stdout.strip()
+            
+            # Try product name
+            result = subprocess.run(
+                ["adb", "-s", device_id, "shell", "getprop", "ro.product.name"],
+                capture_output=True, text=True, timeout=3
+            )
+            if result.returncode == 0 and result.stdout.strip():
+                return result.stdout.strip()
+                
+        except Exception:
+            pass
+        
+        return ""
+    
+    @staticmethod
     def list_devices() -> list:
         """
         List all connected ADB devices.
@@ -52,16 +85,19 @@ class ADBController:
                 device_id = parts[0]
                 status = parts[1] if len(parts) > 1 else "unknown"
                 
-                # Extract model/description if available
-                description = ""
-                for part in parts[2:]:
-                    if part.startswith("model:"):
-                        description = part.replace("model:", "")
-                        break
-                    elif part.startswith("device:"):
-                        description = part.replace("device:", "")
-                
                 if status == "device":  # Only include connected devices
+                    # Try to get a friendly name
+                    description = ADBController.get_device_name(device_id)
+                    
+                    # Fallback to model from adb output
+                    if not description:
+                        for part in parts[2:]:
+                            if part.startswith("model:"):
+                                description = part.replace("model:", "").replace("_", " ")
+                                break
+                            elif part.startswith("device:"):
+                                description = part.replace("device:", "").replace("_", " ")
+                    
                     devices.append((device_id, status, description))
         
         return devices
