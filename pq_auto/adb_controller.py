@@ -11,10 +11,20 @@ from config import CLICK_FUZZINESS, BUTTONS_RELATIVE
 
 
 class ADBController:
-    def __init__(self):
-        self.device = self._auto_detect_device()
-        if not self.device:
-            raise RuntimeError("No ADB device found. Please connect an emulator/device and run 'adb devices' to verify.")
+    def __init__(self, device_id: str = None):
+        """
+        Initialize ADB controller.
+        
+        Args:
+            device_id: Specific device ID to use. If None, auto-detects first available.
+        """
+        if device_id:
+            self.device = device_id
+            print(f"✓ Using specified device: {device_id}")
+        else:
+            self.device = self._auto_detect_device()
+            if not self.device:
+                raise RuntimeError("No ADB device found. Please connect an emulator/device and run 'adb devices' to verify.")
         
         # Auto-detect screen size from screenshot
         self.screen_width, self.screen_height = self._detect_screen_size()
@@ -23,30 +33,53 @@ class ADBController:
         # Convert relative button coordinates to absolute coordinates
         self.buttons = self._calculate_button_coordinates()
     
-    def _auto_detect_device(self) -> str:
-        """Auto-detect the first available ADB device."""
+    @staticmethod
+    def list_devices() -> list:
+        """
+        List all connected ADB devices.
+        Returns list of tuples: (device_id, status, description)
+        """
         result = subprocess.run(
-            ["adb", "devices"],
+            ["adb", "devices", "-l"],
             capture_output=True, text=True
         )
         
-        # Parse output: "List of devices attached\nemulator-5574\tdevice\n"
-        lines = result.stdout.strip().split('\n')[1:]  # Skip header
         devices = []
+        lines = result.stdout.strip().split('\n')[1:]  # Skip header
         for line in lines:
-            if line.strip() and '\tdevice' in line:
-                device = line.split('\t')[0].strip()
-                if device:
-                    devices.append(device)
+            if line.strip() and '\t' in line:
+                parts = line.split()
+                device_id = parts[0]
+                status = parts[1] if len(parts) > 1 else "unknown"
+                
+                # Extract model/description if available
+                description = ""
+                for part in parts[2:]:
+                    if part.startswith("model:"):
+                        description = part.replace("model:", "")
+                        break
+                    elif part.startswith("device:"):
+                        description = part.replace("device:", "")
+                
+                if status == "device":  # Only include connected devices
+                    devices.append((device_id, status, description))
+        
+        return devices
+    
+    def _auto_detect_device(self) -> str:
+        """Auto-detect the first available ADB device."""
+        devices = self.list_devices()
         
         if devices:
-            device = devices[0]  # Use first available device
+            device = devices[0][0]  # Use first available device
             print(f"✓ Auto-detected device: {device}")
             if len(devices) > 1:
-                print(f"  Note: Multiple devices found, using {device}")
+                print(f"  Note: {len(devices)} devices found, using {device}")
+                print(f"  Use --device <id> to select a specific device")
             return device
         else:
             print("✗ No ADB devices found")
+            result = subprocess.run(["adb", "devices"], capture_output=True, text=True)
             print(f"  ADB output:\n{result.stdout}")
             return None
     

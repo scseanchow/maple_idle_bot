@@ -3,9 +3,11 @@
 MapleStory Idle - Party Quest Auto Bot
 
 Usage:
-    python main.py              Run the bot (solo queue - Auto Match)
-    python main.py --group      Run the bot (group/premade - Enter button)
-    python main.py --calibrate  Capture screenshots for template setup
+    python main.py                  Run the bot (solo queue - Auto Match)
+    python main.py --group          Run the bot (group/premade - Enter button)
+    python main.py --device <id>    Run on a specific device
+    python main.py --list-devices   List all connected devices
+    python main.py --calibrate      Capture screenshots for template setup
     
 Press Ctrl+C to stop the bot gracefully.
 Press P to pause/unpause the bot.
@@ -42,11 +44,12 @@ class BotState(Enum):
 
 
 class PartyQuestBot:
-    def __init__(self, group_mode: bool = False):
+    def __init__(self, group_mode: bool = False, device_id: str = None):
         self.group_mode = group_mode
+        self.device_id = device_id
         self._print_banner()
         
-        self.adb = ADBController()
+        self.adb = ADBController(device_id=device_id)
         self.detector = ImageDetector()
         # Get buttons from ADBController (auto-scaled to current screen size)
         self.BUTTONS = self.adb.BUTTONS
@@ -87,11 +90,13 @@ class PartyQuestBot:
     
     def _print_banner(self):
         mode_str = "GROUP MODE" if self.group_mode else "SOLO MODE"
+        device_str = self.device_id[:20] if self.device_id else "auto-detect"
         print()
         print("╔" + "═" * 48 + "╗")
         print("║   MapleStory Idle - Party Quest Auto Bot      ║")
         print("╠" + "═" * 48 + "╣")
-        print(f"║   Mode: {mode_str:37}  ║")
+        print(f"║   Mode:   {mode_str:36} ║")
+        print(f"║   Device: {device_str:36} ║")
         print("║   Press P to pause/unpause                    ║")
         print("║   Press Ctrl+C to stop                        ║")
         print("╚" + "═" * 48 + "╝")
@@ -563,17 +568,107 @@ def calibration_mode():
             print("  Invalid choice")
 
 
+def select_device_menu() -> str:
+    """Interactive menu to select a device from available options."""
+    devices = ADBController.list_devices()
+    
+    if not devices:
+        print("✗ No ADB devices found.")
+        print("  Make sure your emulator is running and ADB is connected.")
+        print("  Try: adb devices")
+        return None
+    
+    if len(devices) == 1:
+        print(f"✓ Found 1 device: {devices[0][0]}")
+        return devices[0][0]
+    
+    # Multiple devices - show selection menu
+    print()
+    print("╔" + "═" * 48 + "╗")
+    print("║           Select Device                        ║")
+    print("╠" + "═" * 48 + "╣")
+    
+    for i, (device_id, status, desc) in enumerate(devices, 1):
+        desc_str = f" ({desc})" if desc else ""
+        line = f"{i}. {device_id}{desc_str}"
+        print(f"║  {line:44} ║")
+    
+    print("╚" + "═" * 48 + "╝")
+    print()
+    
+    while True:
+        try:
+            choice = input(f"Select device (1-{len(devices)}): ").strip()
+            idx = int(choice) - 1
+            if 0 <= idx < len(devices):
+                return devices[idx][0]
+            print(f"  Please enter a number between 1 and {len(devices)}")
+        except ValueError:
+            print("  Please enter a valid number")
+        except EOFError:
+            return None
+
+
+def list_devices_cmd():
+    """List all connected devices and exit."""
+    devices = ADBController.list_devices()
+    
+    if not devices:
+        print("No ADB devices found.")
+        print("Make sure your emulator is running and ADB is connected.")
+        return
+    
+    print()
+    print(f"Found {len(devices)} device(s):")
+    print("-" * 50)
+    for device_id, status, desc in devices:
+        desc_str = f" ({desc})" if desc else ""
+        print(f"  {device_id}{desc_str}")
+    print("-" * 50)
+    print()
+    print("Usage: python main.py --device <device_id>")
+
+
 def main():
     # Change to script directory so relative paths work
     script_dir = Path(__file__).parent.absolute()
     os.chdir(script_dir)
     
+    # Handle --list-devices
+    if "--list-devices" in sys.argv:
+        list_devices_cmd()
+        return
+    
+    # Handle --calibrate
     if "--calibrate" in sys.argv:
         calibration_mode()
+        return
+    
+    # Parse arguments
+    group_mode = "--group" in sys.argv
+    device_id = None
+    
+    # Check for --device argument
+    if "--device" in sys.argv:
+        try:
+            idx = sys.argv.index("--device")
+            device_id = sys.argv[idx + 1]
+        except (IndexError, ValueError):
+            print("Error: --device requires a device ID")
+            print("Usage: python main.py --device <device_id>")
+            print("Run 'python main.py --list-devices' to see available devices")
+            return
     else:
-        group_mode = "--group" in sys.argv
-        bot = PartyQuestBot(group_mode=group_mode)
-        bot.run()
+        # Check if multiple devices available - show selection menu
+        devices = ADBController.list_devices()
+        if len(devices) > 1:
+            device_id = select_device_menu()
+            if not device_id:
+                return
+    
+    # Run the bot
+    bot = PartyQuestBot(group_mode=group_mode, device_id=device_id)
+    bot.run()
 
 
 if __name__ == "__main__":
