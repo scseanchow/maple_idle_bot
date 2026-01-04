@@ -34,25 +34,81 @@ class ADBController:
         self.buttons = self._calculate_button_coordinates()
     
     @staticmethod
-    def try_connect_mumu_ports():
-        """Try to connect to common MuMu Player ADB ports."""
-        # Common MuMu Player ports (varies by version and instance)
-        ports = [5555, 7555, 16384, 16416, 21503, 28672, 28704, 28736, 28768]
+    def get_mumu_devices() -> list:
+        """
+        Get MuMu Player devices using mumutool.
+        Returns list of dicts with: name, adb_port, index, state
+        """
+        mumutool_path = "/tmp/com.netease.mumu.nemux-global/mumutool"
         
-        connected = []
-        for port in ports:
+        try:
+            import json
             result = subprocess.run(
-                ["adb", "connect", f"127.0.0.1:{port}"],
-                capture_output=True, text=True, timeout=2
+                [mumutool_path, "info", "all"],
+                capture_output=True, text=True, timeout=5
             )
-            if "connected" in result.stdout.lower() and "cannot" not in result.stdout.lower():
-                connected.append(f"127.0.0.1:{port}")
+            if result.returncode == 0:
+                data = json.loads(result.stdout)
+                if data.get("errcode") == 0 and "return" in data:
+                    return data["return"].get("results", [])
+        except Exception:
+            pass
+        
+        return []
+    
+    @staticmethod
+    def try_connect_mumu_ports():
+        """Try to connect to MuMu Player ADB ports using mumutool or common ports."""
+        connected = []
+        
+        # First try mumutool (most reliable for MuMu Pro)
+        mumu_devices = ADBController.get_mumu_devices()
+        if mumu_devices:
+            for device in mumu_devices:
+                if device.get("state") == "running" and device.get("adb_port"):
+                    port = device["adb_port"]
+                    result = subprocess.run(
+                        ["adb", "connect", f"127.0.0.1:{port}"],
+                        capture_output=True, text=True, timeout=3
+                    )
+                    if "connected" in result.stdout.lower():
+                        connected.append(f"127.0.0.1:{port}")
+            if connected:
+                return connected
+        
+        # Fallback: try common MuMu Player ports
+        ports = [5555, 7555, 16384, 16416, 21503, 26624, 26656, 28672, 28704]
+        for port in ports:
+            try:
+                result = subprocess.run(
+                    ["adb", "connect", f"127.0.0.1:{port}"],
+                    capture_output=True, text=True, timeout=2
+                )
+                if "connected" in result.stdout.lower() and "cannot" not in result.stdout.lower():
+                    connected.append(f"127.0.0.1:{port}")
+            except Exception:
+                pass
         
         return connected
     
     @staticmethod
     def get_device_name(device_id: str) -> str:
         """Get a friendly name for a device by querying its properties."""
+        # First try mumutool for MuMu devices (gets the instance name)
+        if device_id.startswith("127.0.0.1:"):
+            try:
+                port = int(device_id.split(":")[1])
+                mumu_devices = ADBController.get_mumu_devices()
+                for device in mumu_devices:
+                    if device.get("adb_port") == port:
+                        name = device.get("name", "")
+                        index = device.get("index", "")
+                        if name:
+                            return f"MuMu #{index}: {name}"
+                        return f"MuMu #{index}"
+            except Exception:
+                pass
+        
         try:
             # Try to get device name from settings (works on most Android devices)
             result = subprocess.run(
@@ -109,25 +165,31 @@ class ADBController:
         devices = []
         lines = result.stdout.strip().split('\n')[1:]  # Skip header
         for line in lines:
-            if line.strip() and '\t' in line:
-                parts = line.split()
-                device_id = parts[0]
-                status = parts[1] if len(parts) > 1 else "unknown"
+            if not line.strip():
+                continue
+            
+            # Parse line - can be tab or space separated
+            parts = line.split()
+            if len(parts) < 2:
+                continue
                 
-                if status == "device":  # Only include connected devices
-                    # Try to get a friendly name
-                    description = ADBController.get_device_name(device_id)
-                    
-                    # Fallback to model from adb output
-                    if not description:
-                        for part in parts[2:]:
-                            if part.startswith("model:"):
-                                description = part.replace("model:", "").replace("_", " ")
-                                break
-                            elif part.startswith("device:"):
-                                description = part.replace("device:", "").replace("_", " ")
-                    
-                    devices.append((device_id, status, description))
+            device_id = parts[0]
+            status = parts[1]
+            
+            if status == "device":  # Only include connected devices
+                # Try to get a friendly name
+                description = ADBController.get_device_name(device_id)
+                
+                # Fallback to model from adb output
+                if not description:
+                    for part in parts[2:]:
+                        if part.startswith("model:"):
+                            description = part.replace("model:", "").replace("_", " ")
+                            break
+                        elif part.startswith("device:"):
+                            description = part.replace("device:", "").replace("_", " ")
+                
+                devices.append((device_id, status, description))
         
         return devices
     
