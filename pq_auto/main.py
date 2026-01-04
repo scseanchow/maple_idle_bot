@@ -137,7 +137,10 @@ class PartyQuestBot:
                         else:
                             # Add paused duration to total
                             if self.pause_start_time:
-                                self.total_paused_seconds += time.time() - self.pause_start_time
+                                pause_duration = time.time() - self.pause_start_time
+                                self.total_paused_seconds += pause_duration
+                                # Adjust last_clear_time so inactivity timeout doesn't trigger
+                                self.last_clear_time += pause_duration
                                 self.pause_start_time = None
                             print("\n\n▶ RESUMED\n")
             except Exception:
