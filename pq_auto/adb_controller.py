@@ -34,6 +34,23 @@ class ADBController:
         self.buttons = self._calculate_button_coordinates()
     
     @staticmethod
+    def try_connect_mumu_ports():
+        """Try to connect to common MuMu Player ADB ports."""
+        # Common MuMu Player ports (varies by version and instance)
+        ports = [5555, 7555, 16384, 16416, 21503, 28672, 28704, 28736, 28768]
+        
+        connected = []
+        for port in ports:
+            result = subprocess.run(
+                ["adb", "connect", f"127.0.0.1:{port}"],
+                capture_output=True, text=True, timeout=2
+            )
+            if "connected" in result.stdout.lower() and "cannot" not in result.stdout.lower():
+                connected.append(f"127.0.0.1:{port}")
+        
+        return connected
+    
+    @staticmethod
     def get_device_name(device_id: str) -> str:
         """Get a friendly name for a device by querying its properties."""
         try:
@@ -67,15 +84,27 @@ class ADBController:
         return ""
     
     @staticmethod
-    def list_devices() -> list:
+    def list_devices(auto_connect: bool = True) -> list:
         """
         List all connected ADB devices.
+        If auto_connect is True, tries to connect to common MuMu ports first.
         Returns list of tuples: (device_id, status, description)
         """
+        # First check for existing devices
         result = subprocess.run(
             ["adb", "devices", "-l"],
             capture_output=True, text=True
         )
+        
+        # If no devices found and auto_connect enabled, try MuMu ports
+        if auto_connect and "device" not in result.stdout:
+            print("  No devices found, trying to connect to MuMu ports...")
+            ADBController.try_connect_mumu_ports()
+            # Re-check devices
+            result = subprocess.run(
+                ["adb", "devices", "-l"],
+                capture_output=True, text=True
+            )
         
         devices = []
         lines = result.stdout.strip().split('\n')[1:]  # Skip header
