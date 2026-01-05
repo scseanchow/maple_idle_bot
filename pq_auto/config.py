@@ -13,6 +13,10 @@ QUEUE_TIMEOUT = 180          # Max time in queue before cancelling and re-queuin
 DUNGEON_TIMEOUT = 360        # Max time for dungeon completion (6 min)
 CLICK_DELAY = 0.15           # Delay after clicking
 
+# Bot Runtime Limits
+MAX_RUNTIME = 8 * 60 * 60           # Maximum bot runtime before auto-stop (8 hours)
+INACTIVITY_TIMEOUT = 30 * 60        # Stop bot if no clears in this time (30 minutes)
+
 # Click Configuration
 CLICK_FUZZINESS = 10         # Random offset range for clicks (±pixels) to make clicks more human-like
 

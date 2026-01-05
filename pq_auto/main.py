@@ -30,6 +30,7 @@ from image_detector import ImageDetector
 from config import (
     POLL_INTERVAL, CLICK_DELAY,
     MATCHMAKING_TIMEOUT, DUNGEON_TIMEOUT, QUEUE_TIMEOUT,
+    MAX_RUNTIME, INACTIVITY_TIMEOUT,
     fuzzy_time
 )
 
@@ -75,11 +76,11 @@ class PartyQuestBot:
         # Flag to prevent double-counting clears
         self.last_clear_counted = False
         
-        # Inactivity timeout (30 minutes with no clears = stop bot)
-        self.inactivity_timeout = 30 * 60  # 30 minutes in seconds
+        # Inactivity timeout (from config)
+        self.inactivity_timeout = INACTIVITY_TIMEOUT
         
-        # Maximum runtime (8 hours = stop bot)
-        self.max_runtime = 8 * 60 * 60  # 8 hours in seconds
+        # Maximum runtime (from config)
+        self.max_runtime = MAX_RUNTIME
         
         # Terminal settings for non-blocking input
         self.old_settings = None
