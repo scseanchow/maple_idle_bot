@@ -15,7 +15,7 @@ CLICK_DELAY = 0.15           # Delay after clicking
 
 # Click Configuration
 CLICK_FUZZINESS_X = 100         # Random offset range for clicks (±pixels) to make clicks more human-like
-CLICK_FUZZINESS_Y = 20         # Random offset range for clicks (±pixels) to make clicks more human-like
+CLICK_FUZZINESS_Y = 18         # Random offset range for clicks (±pixels) to make clicks more human-like
 
 # Timing Fuzziness Configuration
 TIMING_FUZZINESS = 0.15      # Random variation for timing (±15% of base value) to make behavior more human-like
@@ -31,6 +31,14 @@ BUTTONS_RELATIVE = {
     "ok": (0.5, 0.6546),             # OK button on error/notice dialogs (centered)
     "close": (0.958, 0.039),         # X button to close screen (top right corner)
     "cancel_queue": (0.617, 0.116),  # X button on matchmaking popup to cancel queue
+    "jump": (0.8802, 0.9506),        # Jump button (centered)
+    "lock": (0.5, 0.8),              # Lock button position (left side, bottom) for unlock swipe
+    "settings": (0.96, 0.047),        # Settings button (top right)
+    "party_quest": (0.88, 0.53),      # Party Quest button (bottom right)
+    "sleepy_wood_pq": (0.15, 0.48),     # Sleepy Wood Party Quest button (centered)}
+    "ludi_pq": (0.40, 0.48),             # Ludi Party Quest button (centered)
+    "exit_party_quest": (0.96, 0.05),    # Exit Party Quest button (top right)
+    "leave_button": (0.55, 0.5),          # Leave button on clear screen
 }
 
 # Template matching threshold (0-1, higher = stricter matching)

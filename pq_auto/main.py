@@ -240,9 +240,14 @@ class PartyQuestBot:
                         # Take a 4-hour break
                         time.sleep(fuzzy_time(4 * 60 * 60))
                         # Navigate back to party quest after break
-                        self.navigate_to_sleepy_wood_party_quest()
+                        self.navigate_to_ludi_party_quest()
+                        # Reset all timers and state for fresh start
                         self.session_start = datetime.now()
                         self.last_clear_time = time.time()  # Reset inactivity timer
+                        self.queue_start = 0  # Reset queue timer
+                        self.dungeon_start = 0  # Reset dungeon timer
+                        self.state = BotState.IDLE  # Reset state to IDLE
+                        self.last_clear_counted = False  # Reset clear count flag
                     
                     # REACTIVE LOGIC - respond to what we SEE, not what we expect
                     self._react_to_state(detected_state, screenshot)
@@ -283,7 +288,7 @@ class PartyQuestBot:
             
         elif detected_state == "SLEEP_SCREEN":
             print("  → Detected SLEEP_SCREEN, unlocking...")
-            self.navigate_to_sleepy_wood_party_quest()
+            self.navigate_to_ludi_party_quest()
             return
 
         elif detected_state == "MATCH_FOUND":
@@ -342,7 +347,7 @@ class PartyQuestBot:
             found_sleep, _, _, _ = self.detector.find_template(screenshot, "sleep_screen")
             if found_sleep:
                 print("  → Unknown state - detected SLEEP_SCREEN (template missed), unlocking...")
-                self.navigate_to_sleepy_wood_party_quest()
+                self.navigate_to_ludi_party_quest()
                 return 
             # Can't identify screen - but try to read queue time anyway
             # If we can read a matchmaking time, we're probably in queue
@@ -361,10 +366,6 @@ class PartyQuestBot:
                     print(f"  → Unknown state but queue detected ({mins}:{secs:02d}), clicking Accept...")
                     self.adb.tap(*self.BUTTONS["accept"])
                     self.state = BotState.QUEUING
-            elif self.state == BotState.QUEUING:
-                # Probably waiting for match, spam Accept
-                print("  → Unknown state (queuing), clicking Accept...")
-                self.adb.tap(*self.BUTTONS["accept"])
             elif self.state == BotState.IN_DUNGEON:
                 # In dungeon but unknown state - just wait, don't pre-click
                 print("  → Unknown state (in dungeon), waiting...")
@@ -515,6 +516,30 @@ class PartyQuestBot:
         self.adb.tap(*self.BUTTONS["party_quest"], click_fuzziness_x=10, click_fuzziness_y=10)
         time.sleep(fuzzy_time(1.3))
         self.adb.tap(*self.BUTTONS["sleepy_wood_pq"], click_fuzziness_x=200, click_fuzziness_y=350)
+    
+    def navigate_to_ludi_party_quest(self):
+        """Unlock screen and navigate back to Ludi Party Quest."""
+        self.unlock_screen()
+        time.sleep(fuzzy_time(2))
+        #check to see if mini map is visible
+        found_minimap, _, _, _ = self.detector.find_template(self.adb.screenshot(), "minimap")
+        if found_minimap:
+            print("  → Mini map detected from sleep screen, exiting party quest...")
+            self.adb.tap(*self.BUTTONS["exit_party_quest"], click_fuzziness_x=10, click_fuzziness_y=10)
+            time.sleep(fuzzy_time(1.3))
+            self.adb.tap(*self.BUTTONS["leave_button"], click_fuzziness_x=20, click_fuzziness_y=20)
+        else:
+            # Close any active queue
+            self.adb.tap(*self.BUTTONS["cancel_queue"], click_fuzziness_x=10, click_fuzziness_y=10)
+            
+        time.sleep(fuzzy_time(1.3))
+        # Open settings
+        self.adb.tap(*self.BUTTONS["settings"], click_fuzziness_x=20, click_fuzziness_y=20)
+        time.sleep(fuzzy_time(2.1))
+        # Click Party Quest
+        self.adb.tap(*self.BUTTONS["party_quest"], click_fuzziness_x=10, click_fuzziness_y=10)
+        time.sleep(fuzzy_time(1.3))
+        self.adb.tap(*self.BUTTONS["ludi_pq"], click_fuzziness_x=200, click_fuzziness_y=350)
 
 def calibration_mode():
     """Helper mode to capture button positions and templates."""
